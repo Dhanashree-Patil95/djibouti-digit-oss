@@ -587,9 +587,6 @@ public class CommonRepository {
 			case "female":
 				deathDtl.setGender(2);
 				break;
-			case "transgender":
-				deathDtl.setGender(3);
-				break;
 			default:
 				deathDtl.setGender(0);
 				break;
@@ -982,9 +979,6 @@ public class CommonRepository {
 				break;
 			case "female":
 				deathDtl.setGender(2);
-				break;
-			case "transgender":
-				deathDtl.setGender(3);
 				break;
 			default:
 				deathDtl.setGender(0);

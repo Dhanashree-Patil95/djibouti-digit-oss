@@ -325,7 +325,7 @@ const OwnerInfo = {
         { type: "null" },
         {
           type: "string",
-          enum: ["MALE", "FEMALE", "TRANSGENDER", "OTHERS"]
+          enum: ["MALE", "FEMALE", "OTHERS"]
         }
       ]
       // type: ["string","null"],
