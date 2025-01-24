@@ -61,7 +61,7 @@ public class ServiceReqSearchCriteria {
 	private List<String> serviceCodes;
 	
 	@JsonProperty("phone")
-	@Pattern(regexp="(^$|[0-9]{10})")
+	@Pattern(regexp="(^$|^77[0-9]{6}$)")
 	private String phone;
 	
 	@JsonProperty("active")

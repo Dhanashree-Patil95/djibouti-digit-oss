@@ -69,7 +69,7 @@
             "in": "query",
             "description": "The mobile number of a Fire NOC owner.",
             "type": "string",
-            "pattern": "[0-9]"
+            "pattern": "^77[0-9]{6}$"
           },
           {
             "name": "fireNOCType",

@@ -86,7 +86,7 @@ public class Service   {
 
   @JsonProperty("phone")
   @NotEmpty
-  @Pattern(regexp="(^$|[0-9]{10})")
+  @Pattern(regexp="(^$|^77[0-9]{6}$)")
   private String phone;
 
   @JsonProperty("attributes")

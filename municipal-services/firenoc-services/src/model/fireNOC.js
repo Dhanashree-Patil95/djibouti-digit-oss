@@ -318,7 +318,7 @@ const OwnerInfo = {
       type: "string",
       description: "mobile number of the autheticated user",
       valid_htmlData: true,
-      pattern: "^[6789][0-9]{9}$"
+      pattern: "^77[0-9]{6}$"
     },
     gender: {
       oneOf: [

@@ -1097,7 +1097,7 @@ components:
           minLength: 0
           type: string
         mobileNumber:
-          pattern: (^[6-9][0-9]{9}$)
+          pattern: (^77[0-9]{6}$)
           type: string
         name:
           maxLength: 100

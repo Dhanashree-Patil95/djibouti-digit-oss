@@ -27,7 +27,7 @@ const FireNOCSearchRequest = {
     },
     mobileNumber: {
       type: "string",
-      pattern: "[0-9]"
+      pattern: "^77[0-9]{6}$"
     },
     fireNOCType: {
       type: "string"

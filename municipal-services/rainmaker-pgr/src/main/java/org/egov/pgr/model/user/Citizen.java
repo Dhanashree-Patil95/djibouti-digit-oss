@@ -30,7 +30,7 @@ public class Citizen {
 	@Size(max=160)
 	private String address;
 	
-	@Pattern(regexp="(^$|[0-9]{10})")
+	@Pattern(regexp="(^$|^77[0-9]{6}$)")
 	private String mobileNumber;
 	
 	private String aadhaarNumber;
