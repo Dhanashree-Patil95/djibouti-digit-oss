@@ -42,11 +42,11 @@ public class OCService {
 	public void validateAdditionalData(BPARequest bpaRequest, BPASearchCriteria criteria) {
 		
 		org.egov.common.contract.request.RequestInfo requestInfo = bpaRequest.getRequestInfo();
-		String OcEdcr = bpaRequest.getBPA().getEdcrNumber(); 
-		String num = criteria.getEdcrNumber();
+//		String OcEdcr = bpaRequest.getBPA().getEdcrNumber();
+//		String num = criteria.getEdcrNumber();
 		ArrayList<String> edcrNos = new ArrayList<String>();
-		edcrNos.add(OcEdcr);
-		edcrNos.add(num);
+//		edcrNos.add(OcEdcr);
+//		edcrNos.add(num);
 		RequestInfo edcrRequestInfo = new RequestInfo();
 		ArrayList<LinkedHashMap<String, Object>> data = new ArrayList<LinkedHashMap<String, Object>>();
 		edcrNos.forEach(edcrNo -> {

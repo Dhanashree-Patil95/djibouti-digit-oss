@@ -60,27 +60,27 @@ public class EDCRService {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public Map<String, String> validateEdcrPlan(BPARequest request, Object mdmsData) {
 
-		String edcrNo = request.getBPA().getEdcrNumber();
+//		String edcrNo = request.getBPA().getEdcrNumber();
 		String riskType = request.getBPA().getRiskType();
 		StringBuilder uri = new StringBuilder(config.getEdcrHost());
 		BPA bpa = request.getBPA();
 
 		BPASearchCriteria criteria = new BPASearchCriteria();
-		criteria.setEdcrNumber(bpa.getEdcrNumber());
+//		criteria.setEdcrNumber(bpa.getEdcrNumber());
 		criteria.setTenantId(bpa.getTenantId());
-		List<BPA> bpas = bpaRepository.getBPAData(criteria, null);
+		List<BPA> bpas = bpaRepository.getBPAData(criteria);
 		if(bpas.size()>0){
 			for(int i=0; i<bpas.size(); i++){
 				if(!bpas.get(i).getStatus().equalsIgnoreCase(BPAConstants.STATUS_REJECTED) && !bpas.get(i).getStatus().equalsIgnoreCase(BPAConstants.STATUS_REVOCATED)){
 					throw new CustomException(BPAErrorConstants.DUPLICATE_EDCR,
-							" Application already exists with EDCR Number " + bpa.getEdcrNumber());
+							" Application already exists with EDCR Number ");
 				}
 			}
 		}
 		
 		uri.append(config.getGetPlanEndPoint());
 		uri.append("?").append("tenantId=").append(bpa.getTenantId());
-		uri.append("&").append("edcrNumber=").append(edcrNo);
+//		uri.append("&").append("edcrNumber=").append(edcrNo);
 		RequestInfo edcrRequestInfo = new RequestInfo();
 		BeanUtils.copyProperties(request.getRequestInfo(), edcrRequestInfo);
 		Map<String, List<String>> masterData = mdmsValidator.getAttributeValues(mdmsData);
@@ -139,7 +139,7 @@ public class EDCRService {
                     BPASearchCriteria ocCriteria = new BPASearchCriteria();
                     ocCriteria.setPermitNumber(permitNumber.get(0));
                     ocCriteria.setTenantId(bpa.getTenantId());
-                    List<BPA> ocApplns = bpaRepository.getBPAData(ocCriteria, null);
+                    List<BPA> ocApplns = bpaRepository.getBPAData(ocCriteria);
                     if (!ocApplns.isEmpty()) {
                         for (int i = 0; i < ocApplns.size(); i++) {
                             if (!ocApplns.get(i).getStatus().equalsIgnoreCase(BPAConstants.STATUS_REJECTED)) {
@@ -156,7 +156,7 @@ public class EDCRService {
 				typeRef);
 
 		if (CollectionUtils.isEmpty(edcrStatus) || !edcrStatus.get(0).equalsIgnoreCase("Accepted")) {
-			throw new CustomException(BPAErrorConstants.INVALID_EDCR_NUMBER, "The EDCR Number is not Accepted " + edcrNo);
+			throw new CustomException(BPAErrorConstants.INVALID_EDCR_NUMBER, "The EDCR Number is not Accepted");
 		}
 		this.validateOCEdcr(OccupancyTypes, plotAreas, buildingHeights, applicationType, masterData, riskType);
 		
@@ -214,7 +214,7 @@ public class EDCRService {
 		StringBuilder uri = new StringBuilder(config.getEdcrHost());
 		uri.append(config.getGetPlanEndPoint());
 		uri.append("?").append("tenantId=").append(bpa.getTenantId());
-		uri.append("&").append("edcrNumber=").append(bpaRequest.getBPA().getEdcrNumber());
+//		uri.append("&").append("edcrNumber=").append(bpaRequest.getBPA().getEdcrNumber());
 		RequestInfo edcrRequestInfo = new RequestInfo();
 		BeanUtils.copyProperties(bpaRequest.getRequestInfo(), edcrRequestInfo);
 		LinkedHashMap responseMap = null;
@@ -241,12 +241,12 @@ public class EDCRService {
 	@SuppressWarnings("rawtypes")
 	public Map<String, String> getEDCRDetails(org.egov.common.contract.request.RequestInfo requestInfo, BPA bpa) {
 
-		String edcrNo = bpa.getEdcrNumber();
+//		String edcrNo = bpa.getEdcrNumber();
 		StringBuilder uri = new StringBuilder(config.getEdcrHost());
 
 		uri.append(config.getGetPlanEndPoint());
 		uri.append("?").append("tenantId=").append(bpa.getTenantId());
-		uri.append("&").append("edcrNumber=").append(edcrNo);
+//		uri.append("&").append("edcrNumber=").append(edcrNo);
 		RequestInfo edcrRequestInfo = new RequestInfo();
 		BeanUtils.copyProperties(requestInfo, edcrRequestInfo);
 		LinkedHashMap responseMap = null;

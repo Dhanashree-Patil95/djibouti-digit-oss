@@ -1,17 +1,20 @@
 package org.egov.bpa.service;
 
-import com.itextpdf.io.font.constants.StandardFonts;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfReader;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.properties.TextAlignment;
-import com.itextpdf.layout.properties.VerticalAlignment;
-import lombok.extern.slf4j.Slf4j;
-import net.logstash.logback.encoder.org.apache.commons.lang.StringUtils;
+import java.io.IOException;
+import java.io.InputStream;
+import java.math.BigDecimal;
+import java.net.URL;
+import java.net.URLConnection;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
 import org.egov.bpa.config.BPAConfiguration;
 import org.egov.bpa.repository.BPARepository;
 import org.egov.bpa.util.BPAConstants;
@@ -39,19 +42,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.math.BigDecimal;
-import java.net.URL;
-import java.net.URLConnection;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.*;
+import com.itextpdf.io.font.constants.StandardFonts;
+import com.itextpdf.kernel.font.PdfFontFactory;
+import com.itextpdf.kernel.geom.Rectangle;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfReader;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.properties.TextAlignment;
+import com.itextpdf.layout.properties.VerticalAlignment;
+
+import lombok.extern.slf4j.Slf4j;
+import net.logstash.logback.encoder.org.apache.commons.lang.StringUtils;
 
 @Service
 @Slf4j
 public class BPAService {
-
 
 	@Autowired
 	private WorkflowIntegrator wfIntegrator;
@@ -91,41 +98,43 @@ public class BPAService {
 
 	@Autowired
 	private UserService userService;
-	
+
 	@Autowired
 	private NocService nocService;
-	
+
 	@Autowired
 	private BPAConfiguration config;
 
 	@Autowired
 	private MultiStateInstanceUtil centralInstanceUtil;
+
 	/**
 	 * does all the validations required to create BPA Record in the system
+	 * 
 	 * @param bpaRequest
 	 * @return
 	 */
+	@SuppressWarnings("unchecked")
 	public BPA create(BPARequest bpaRequest) {
 		RequestInfo requestInfo = bpaRequest.getRequestInfo();
-		String tenantId =  centralInstanceUtil.getStateLevelTenant(bpaRequest.getBPA().getTenantId());
+		String tenantId = centralInstanceUtil.getStateLevelTenant(bpaRequest.getBPA().getTenantId());
 		Object mdmsData = util.mDMSCall(requestInfo, tenantId);
 		if (centralInstanceUtil.isTenantIdStateLevel(bpaRequest.getBPA().getTenantId())) {
 			throw new CustomException(BPAErrorConstants.INVALID_TENANT, " Application cannot be create at StateLevel");
 		}
-		
-		//Since approval number should be generated at approve stage
-		if(!StringUtils.isEmpty(bpaRequest.getBPA().getApprovalNo())) {
+
+		// Since approval number should be generated at approve stage
+		if (!StringUtils.isEmpty(bpaRequest.getBPA().getApprovalNo())) {
 			bpaRequest.getBPA().setApprovalNo(null);
 		}
-		
-		Map<String, String> values = edcrService.validateEdcrPlan(bpaRequest, mdmsData);
+
+		Map<String, String> values = (Map<String, String>) bpaRequest.getBPA().getAdditionalDetails();
 		String applicationType = values.get(BPAConstants.APPLICATIONTYPE);
-		this.validateCreateOC(applicationType, values, requestInfo, bpaRequest);
 		bpaValidator.validateCreate(bpaRequest, mdmsData, values);
 		if (!applicationType.equalsIgnoreCase(BPAConstants.BUILDING_PLAN_OC)) {
 			landService.addLandInfoToBPA(bpaRequest);
 		}
-		enrichmentService.enrichBPACreateRequest(bpaRequest, mdmsData, values);
+		enrichmentService.enrichBPACreateRequest(bpaRequest, values);
 		wfIntegrator.callWorkFlow(bpaRequest);
 		nocService.createNocRequest(bpaRequest, mdmsData);
 		this.addCalculation(applicationType, bpaRequest);
@@ -135,13 +144,15 @@ public class BPAService {
 
 	/**
 	 * applies the required vlaidation for OC on Create
+	 * 
 	 * @param applicationType
 	 * @param values
 	 * @param requestInfo
 	 * @param bpaRequest
 	 */
-	private void validateCreateOC(String applicationType,Map<String, String> values, RequestInfo requestInfo, BPARequest bpaRequest) {
-		
+	private void validateCreateOC(String applicationType, Map<String, String> values, RequestInfo requestInfo,
+			BPARequest bpaRequest) {
+
 		if (applicationType.equalsIgnoreCase(BPAConstants.BUILDING_PLAN_OC)) {
 			String approvalNo = values.get(BPAConstants.PERMIT_NO);
 
@@ -149,33 +160,35 @@ public class BPAService {
 			criteria.setTenantId(bpaRequest.getBPA().getTenantId());
 			criteria.setApprovalNo(approvalNo);
 			List<BPA> ocBpas = search(criteria, requestInfo);
-			
-			if( ocBpas.size() <=0 || ocBpas.size() >1) {
-				throw new CustomException(BPAErrorConstants.CREATE_ERROR, 
-						( (ocBpas.size() <=0) ? "BPA not found with approval Number :" : "Multiple BPA applications found for approval number :") + approvalNo);
-			}
-			else if ( ocBpas.get(0).getStatus().equalsIgnoreCase(BPAConstants.STATUS_REVOCATED)) {
-				throw new CustomException(BPAErrorConstants.CREATE_ERROR, "This permit number is revocated you cannot use this permit number");
-			}
-			else if (!ocBpas.get(0).getStatus().equalsIgnoreCase(BPAConstants.STATUS_APPROVED)) {
-				throw new CustomException(BPAErrorConstants.CREATE_ERROR, "The selected permit number still in workflow approval process, Please apply occupancy after completing approval process.");
+
+			if (ocBpas.size() <= 0 || ocBpas.size() > 1) {
+				throw new CustomException(BPAErrorConstants.CREATE_ERROR,
+						((ocBpas.size() <= 0) ? "BPA not found with approval Number :"
+								: "Multiple BPA applications found for approval number :") + approvalNo);
+			} else if (ocBpas.get(0).getStatus().equalsIgnoreCase(BPAConstants.STATUS_REVOCATED)) {
+				throw new CustomException(BPAErrorConstants.CREATE_ERROR,
+						"This permit number is revocated you cannot use this permit number");
+			} else if (!ocBpas.get(0).getStatus().equalsIgnoreCase(BPAConstants.STATUS_APPROVED)) {
+				throw new CustomException(BPAErrorConstants.CREATE_ERROR,
+						"The selected permit number still in workflow approval process, Please apply occupancy after completing approval process.");
 			}
 
 			values.put("landId", ocBpas.get(0).getLandId());
-			criteria.setEdcrNumber(ocBpas.get(0).getEdcrNumber());
 			ocService.validateAdditionalData(bpaRequest, criteria);
 			bpaRequest.getBPA().setLandInfo(ocBpas.get(0).getLandInfo());
 		}
 	}
-	
+
 	/**
 	 * calls calculation service calculate and generte demand accordingly
+	 * 
 	 * @param applicationType
 	 * @param bpaRequest
 	 */
-	private void addCalculation(String applicationType,BPARequest bpaRequest) {
-		
-		if (bpaRequest.getBPA().getRiskType().equals(BPAConstants.LOW_RISKTYPE) && !applicationType.equalsIgnoreCase(BPAConstants.BUILDING_PLAN_OC)) {
+	private void addCalculation(String applicationType, BPARequest bpaRequest) {
+
+		if (bpaRequest.getBPA().getRiskType().equals(BPAConstants.LOW_RISKTYPE)
+				&& !applicationType.equalsIgnoreCase(BPAConstants.BUILDING_PLAN_OC)) {
 			calculationService.addCalculation(bpaRequest, BPAConstants.LOW_RISK_PERMIT_FEE_KEY);
 		} else {
 			calculationService.addCalculation(bpaRequest, BPAConstants.APPLICATION_FEE_KEY);
@@ -183,13 +196,11 @@ public class BPAService {
 	}
 
 	/**
-	 * Searches the Bpa for the given criteria if search is on owner paramter
-	 * then first user service is called followed by query to db
+	 * Searches the Bpa for the given criteria if search is on owner paramter then
+	 * first user service is called followed by query to db
 	 * 
-	 * @param criteria
-	 *            The object containing the parameters on which to search
-	 * @param requestInfo
-	 *            The search request's requestInfo
+	 * @param criteria    The object containing the parameters on which to search
+	 * @param requestInfo The search request's requestInfo
 	 * @return List of bpa for the given criteria
 	 */
 	public List<BPA> search(BPASearchCriteria criteria, RequestInfo requestInfo) {
@@ -198,9 +209,9 @@ public class BPAService {
 		LandSearchCriteria landcriteria = new LandSearchCriteria();
 		landcriteria.setTenantId(criteria.getTenantId());
 		landcriteria.setLocality(criteria.getLocality());
-		List<String> edcrNos = null;
+
 		if (criteria.getMobileNumber() != null) {
-			bpas= this.getBPAFromMobileNumber(criteria, landcriteria, requestInfo);
+			bpas = this.getBPAFromMobileNumber(criteria, landcriteria, requestInfo);
 		} else {
 			List<String> roles = new ArrayList<>();
 			for (Role role : requestInfo.getUserInfo().getRoles()) {
@@ -208,12 +219,12 @@ public class BPAService {
 			}
 			if ((criteria.tenantIdOnly() || criteria.isEmpty()) && roles.contains(BPAConstants.CITIZEN)) {
 				log.debug("loading data of created and by me");
-				bpas =  this.getBPACreatedForByMe(criteria, requestInfo, landcriteria, edcrNos);
+				bpas = this.getBPACreatedForByMe(criteria, requestInfo, landcriteria);
 				log.debug("no of bpas retuning by the search query" + bpas.size());
 			} else {
-				bpas = getBPAFromCriteria(criteria, requestInfo, edcrNos);
+				bpas = getBPAFromCriteria(criteria, requestInfo);
 				ArrayList<String> landIds = new ArrayList<>();
-				if (!bpas.isEmpty()) {	
+				if (!bpas.isEmpty()) {
 					for (int i = 0; i < bpas.size(); i++) {
 						landIds.add(bpas.get(i).getLandId());
 					}
@@ -222,20 +233,23 @@ public class BPAService {
 					log.debug("Call with tenantId to Land::" + landcriteria.getTenantId());
 					ArrayList<LandInfo> landInfos = landService.searchLandInfoToBPA(requestInfo, landcriteria);
 
-					this.populateLandToBPA(bpas, landInfos,requestInfo);
+					this.populateLandToBPA(bpas, landInfos, requestInfo);
 				}
 			}
 		}
 		return bpas;
 	}
+
 	/**
 	 * search the BPA records created by and create for the logged in User
+	 * 
 	 * @param criteria
 	 * @param requestInfo
 	 * @param landcriteria
 	 * @param edcrNos
 	 */
-	private List<BPA> getBPACreatedForByMe(BPASearchCriteria criteria, RequestInfo requestInfo,LandSearchCriteria landcriteria,List<String> edcrNos ) {
+	private List<BPA> getBPACreatedForByMe(BPASearchCriteria criteria, RequestInfo requestInfo,
+			LandSearchCriteria landcriteria) {
 		List<BPA> bpas = null;
 		UserSearchRequest userSearchRequest = new UserSearchRequest();
 		if (criteria.getTenantId() != null) {
@@ -247,7 +261,7 @@ public class BPAService {
 			criteria.setOwnerIds(uuids);
 			criteria.setCreatedBy(uuids);
 		}
-		log.debug("loading data of created and by me"+ uuids.toString());
+		log.debug("loading data of created and by me" + uuids.toString());
 		UserDetailResponse userInfo = userService.getUser(criteria, requestInfo);
 		if (userInfo != null) {
 			landcriteria.setMobileNumber(userInfo.getUser().get(0).getMobileNumber());
@@ -259,8 +273,8 @@ public class BPAService {
 			landInfos.forEach(land -> landIds.add(land.getId()));
 			criteria.setLandId(landIds);
 		}
-		
-		bpas = getBPAFromCriteria(criteria, requestInfo, edcrNos);
+
+		bpas = getBPAFromCriteria(criteria, requestInfo);
 		log.debug("no of bpas queried" + bpas.size());
 		this.populateLandToBPA(bpas, landInfos, requestInfo);
 		return bpas;
@@ -268,6 +282,7 @@ public class BPAService {
 
 	/**
 	 * populate appropriate landInfo to BPA
+	 * 
 	 * @param bpas
 	 * @param landInfos
 	 */
@@ -278,13 +293,14 @@ public class BPAService {
 					bpas.get(i).setLandInfo(landInfos.get(j));
 				}
 			}
-			if(bpas.get(i).getLandId() != null && bpas.get(i).getLandInfo() == null) {
+			if (bpas.get(i).getLandId() != null && bpas.get(i).getLandInfo() == null) {
 				LandSearchCriteria missingLandcriteria = new LandSearchCriteria();
 				List<String> missingLandIds = new ArrayList<>();
 				missingLandIds.add(bpas.get(i).getLandId());
 				missingLandcriteria.setTenantId(bpas.get(0).getTenantId());
 				missingLandcriteria.setIds(missingLandIds);
-				log.debug("Call with land ids to Land::" + missingLandcriteria.getTenantId() + missingLandcriteria.getIds());
+				log.debug("Call with land ids to Land::" + missingLandcriteria.getTenantId()
+						+ missingLandcriteria.getIds());
 				List<LandInfo> newLandInfo = landService.searchLandInfoToBPA(requestInfo, missingLandcriteria);
 				for (int j = 0; j < newLandInfo.size(); j++) {
 					if (newLandInfo.get(j).getId().equalsIgnoreCase(bpas.get(i).getLandId())) {
@@ -294,15 +310,19 @@ public class BPAService {
 			}
 		}
 	}
+
 	/**
 	 * search the land with mobile number and then BPA from the land
+	 * 
 	 * @param criteria
 	 * @param landcriteria
 	 * @param requestInfo
 	 * @return
 	 */
-	private List<BPA> getBPAFromMobileNumber(BPASearchCriteria criteria,LandSearchCriteria landcriteria, RequestInfo requestInfo){
-		List<BPA> bpas = new LinkedList<>();;
+	private List<BPA> getBPAFromMobileNumber(BPASearchCriteria criteria, LandSearchCriteria landcriteria,
+			RequestInfo requestInfo) {
+		List<BPA> bpas = new LinkedList<>();
+		;
 		log.debug("Call with mobile number to Land::" + criteria.getMobileNumber());
 		landcriteria.setMobileNumber(criteria.getMobileNumber());
 		ArrayList<LandInfo> landInfo = landService.searchLandInfoToBPA(requestInfo, landcriteria);
@@ -313,12 +333,11 @@ public class BPAService {
 		}
 
 		String tenantId = criteria.getTenantId();
-		if(landInfo.isEmpty() && !tenantId.isEmpty() && tenantId !=null)
-		{
-          return bpas;
+		if (landInfo.isEmpty() && !tenantId.isEmpty() && tenantId != null) {
+			return bpas;
 		}
 
-		bpas = getBPAFromLandId(criteria, requestInfo, null);
+		bpas = getBPAFromLandId(criteria);
 		if (!landInfo.isEmpty()) {
 			for (int i = 0; i < bpas.size(); i++) {
 				for (int j = 0; j < landInfo.size(); j++) {
@@ -331,28 +350,23 @@ public class BPAService {
 		return bpas;
 	}
 
-
-	private List<BPA> getBPAFromLandId(BPASearchCriteria criteria, RequestInfo requestInfo, List<String> edcrNos) {
-		List<BPA> bpa = new LinkedList<>();
-		bpa = repository.getBPAData(criteria, edcrNos);
+	private List<BPA> getBPAFromLandId(BPASearchCriteria criteria) {
+		List<BPA> bpa = repository.getBPAData(criteria);
 		if (bpa.size() == 0) {
 			return Collections.emptyList();
 		}
 		return bpa;
 	}
 
-
 	/**
 	 * Returns the bpa with enriched owners from user service
 	 * 
-	 * @param criteria
-	 *            The object containing the parameters on which to search
-	 * @param requestInfo
-	 *            The search request's requestInfo
+	 * @param criteria    The object containing the parameters on which to search
+	 * @param requestInfo The search request's requestInfo
 	 * @return List of bpa for the given criteria
 	 */
-	public List<BPA> getBPAFromCriteria(BPASearchCriteria criteria, RequestInfo requestInfo, List<String> edcrNos) {
-		List<BPA> bpa = repository.getBPAData(criteria, edcrNos);
+	public List<BPA> getBPAFromCriteria(BPASearchCriteria criteria, RequestInfo requestInfo) {
+		List<BPA> bpa = repository.getBPAData(criteria);
 		if (bpa.isEmpty())
 			return Collections.emptyList();
 		return bpa;
@@ -361,14 +375,13 @@ public class BPAService {
 	/**
 	 * Updates the bpa
 	 * 
-	 * @param bpaRequest
-	 *            The update Request
+	 * @param bpaRequest The update Request
 	 * @return Updated bpa
 	 */
 	@SuppressWarnings("unchecked")
 	public BPA update(BPARequest bpaRequest) {
 		RequestInfo requestInfo = bpaRequest.getRequestInfo();
-		String tenantId =  centralInstanceUtil.getStateLevelTenant(bpaRequest.getBPA().getTenantId());
+		String tenantId = centralInstanceUtil.getStateLevelTenant(bpaRequest.getBPA().getTenantId());
 		Object mdmsData = util.mDMSCall(requestInfo, tenantId);
 		BPA bpa = bpaRequest.getBPA();
 
@@ -376,86 +389,84 @@ public class BPAService {
 			throw new CustomException(BPAErrorConstants.UPDATE_ERROR, "Application Not found in the System" + bpa);
 		}
 
-		Map<String, String> edcrResponse = edcrService.getEDCRDetails(bpaRequest.getRequestInfo(), bpaRequest.getBPA());
-		String applicationType = edcrResponse.get(BPAConstants.APPLICATIONTYPE);
+		Map<String, String> additionalDetails = bpa.getAdditionalDetails() != null
+				? (Map<String, String>) bpa.getAdditionalDetails()
+				: new HashMap<>();
+
+		String applicationType = additionalDetails.get(BPAConstants.APPLICATIONTYPE);
 		log.debug("applicationType is " + applicationType);
 		BusinessService businessService = workflowService.getBusinessService(bpa, bpaRequest.getRequestInfo(),
 				bpa.getApplicationNo());
 
 		List<BPA> searchResult = getBPAWithBPAId(bpaRequest);
 		if (CollectionUtils.isEmpty(searchResult) || searchResult.size() > 1) {
-			throw new CustomException(BPAErrorConstants.UPDATE_ERROR, "Failed to Update the Application, Found None or multiple applications!");
+			throw new CustomException(BPAErrorConstants.UPDATE_ERROR,
+					"Failed to Update the Application, Found None or multiple applications!");
 		}
-		
-		
-		Map<String, String> additionalDetails = bpa.getAdditionalDetails() != null ? (Map<String, String>)bpa.getAdditionalDetails()
-				: new HashMap<String, String>();
-		
+
 		if (bpa.getStatus().equalsIgnoreCase(BPAConstants.FI_STATUS)
-				&& bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_SENDBACKTOCITIZEN)) {
-			if (additionalDetails.get(BPAConstants.FI_ADDITIONALDETAILS) != null)
-				additionalDetails.remove(BPAConstants.FI_ADDITIONALDETAILS);
+				&& bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_SENDBACKTOCITIZEN)
+				&& additionalDetails.get(BPAConstants.FI_ADDITIONALDETAILS) != null) {
+			additionalDetails.remove(BPAConstants.FI_ADDITIONALDETAILS);
 		}
-		
-		this.processOcUpdate(applicationType,  edcrResponse.get(BPAConstants.PERMIT_NO), bpaRequest, requestInfo, additionalDetails);
 
 		bpaRequest.getBPA().setAuditDetails(searchResult.get(0).getAuditDetails());
-		
+
 		nocService.manageOfflineNocs(bpaRequest, mdmsData);
 		bpaValidator.validatePreEnrichData(bpaRequest, mdmsData);
 		enrichmentService.enrichBPAUpdateRequest(bpaRequest, businessService);
-		
-		this.handleRejectSendBackActions(applicationType, bpaRequest, businessService, searchResult, mdmsData, edcrResponse);
-                String state = workflowService.getCurrentState(bpa.getStatus(), businessService);
-                String businessSrvc = businessService.getBusinessService();
-                
-                /*
-                 * Before approving the application we need to check sanction fee is applicable
-                 * or not for that purpose on PENDING_APPROVAL_STATE the demand is generating.
-                 */
-                // Generate the sanction Demand
-                if ((businessSrvc.equalsIgnoreCase(BPAConstants.BPA_OC_MODULE_CODE)
-                        || businessSrvc.equalsIgnoreCase(BPAConstants.BPA_BUSINESSSERVICE))
-                        && state.equalsIgnoreCase(BPAConstants.PENDING_APPROVAL_STATE)) {
-                    calculationService.addCalculation(bpaRequest, BPAConstants.SANCTION_FEE_KEY);
-                }
-                
-                
-                /*
-                 * For Permit medium/high and OC on approval stage, we need to check whether for a 
-                 * application sanction fee is applicable or not. If sanction fee is not applicable
-                 * then we need to skip the payment on APPROVE and need to make it APPROVED instead
-                 * of SANCTION FEE PAYMENT PEDNING.
-                 */
-                if ((businessSrvc.equalsIgnoreCase(BPAConstants.BPA_OC_MODULE_CODE)
-                        || businessSrvc.equalsIgnoreCase(BPAConstants.BPA_BUSINESSSERVICE))
-                        && state.equalsIgnoreCase(BPAConstants.PENDING_APPROVAL_STATE) &&
-                        bpa.getWorkflow() != null && bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_APPROVE)
-                        && util.getDemandAmount(bpaRequest).compareTo(BigDecimal.ZERO) <= 0) {
-                    Workflow workflow = Workflow.builder().action(BPAConstants.ACTION_SKIP_PAY).build();
-                    bpa.setWorkflow(workflow);
-                }
+
+		this.handleRejectSendBackActions(applicationType, bpaRequest, businessService, searchResult, mdmsData,
+				additionalDetails);
+		String state = workflowService.getCurrentState(bpa.getStatus(), businessService);
+		String businessSrvc = businessService.getBusinessService();
+
+		/*
+		 * Before approving the application we need to check sanction fee is applicable
+		 * or not for that purpose on PENDING_APPROVAL_STATE the demand is generating.
+		 */
+		// Generate the sanction Demand
+		if ((businessSrvc.equalsIgnoreCase(BPAConstants.BPA_OC_MODULE_CODE)
+				|| businessSrvc.equalsIgnoreCase(BPAConstants.BPA_BUSINESSSERVICE))
+				&& state.equalsIgnoreCase(BPAConstants.PENDING_APPROVAL_STATE)) {
+			calculationService.addCalculation(bpaRequest, BPAConstants.SANCTION_FEE_KEY);
+		}
+
+		/*
+		 * For Permit medium/high and OC on approval stage, we need to check whether for
+		 * a application sanction fee is applicable or not. If sanction fee is not
+		 * applicable then we need to skip the payment on APPROVE and need to make it
+		 * APPROVED instead of SANCTION FEE PAYMENT PEDNING.
+		 */
+		if ((businessSrvc.equalsIgnoreCase(BPAConstants.BPA_OC_MODULE_CODE)
+				|| businessSrvc.equalsIgnoreCase(BPAConstants.BPA_BUSINESSSERVICE))
+				&& state.equalsIgnoreCase(BPAConstants.PENDING_APPROVAL_STATE) && bpa.getWorkflow() != null
+				&& bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_APPROVE)
+				&& util.getDemandAmount(bpaRequest).compareTo(BigDecimal.ZERO) <= 0) {
+			Workflow workflow = Workflow.builder().action(BPAConstants.ACTION_SKIP_PAY).build();
+			bpa.setWorkflow(workflow);
+		}
 
 		wfIntegrator.callWorkFlow(bpaRequest);
-		log.debug("===> workflow done =>" +bpaRequest.getBPA().getStatus()  );
+		log.debug("===> workflow done =>" + bpaRequest.getBPA().getStatus());
 		enrichmentService.postStatusEnrichment(bpaRequest);
-		
+
 		log.debug("Bpa status is : " + bpa.getStatus());
 
-
-                /*
-                 * if (Arrays.asList(config.getSkipPaymentStatuses().split(",")).contains(bpa.getStatus())) {
-                 * enrichmentService.skipPayment(bpaRequest); enrichmentService.postStatusEnrichment(bpaRequest); }
-                 */
-
+		/*
+		 * if (Arrays.asList(config.getSkipPaymentStatuses().split(",")).contains(bpa.
+		 * getStatus())) { enrichmentService.skipPayment(bpaRequest);
+		 * enrichmentService.postStatusEnrichment(bpaRequest); }
+		 */
 
 		repository.update(bpaRequest, workflowService.isStateUpdatable(bpa.getStatus(), businessService));
 		return bpaRequest.getBPA();
 
 	}
-	
+
 	/**
 	 * handle the reject and Send Back action of the update
+	 * 
 	 * @param applicationType
 	 * @param bpaRequest
 	 * @param businessService
@@ -463,10 +474,12 @@ public class BPAService {
 	 * @param mdmsData
 	 * @param edcrResponse
 	 */
-	private void handleRejectSendBackActions(String applicationType, BPARequest bpaRequest,BusinessService businessService,List<BPA> searchResult,Object mdmsData,Map<String, String> edcrResponse ) {
+	private void handleRejectSendBackActions(String applicationType, BPARequest bpaRequest,
+			BusinessService businessService, List<BPA> searchResult, Object mdmsData, Map<String, String> values) {
 		BPA bpa = bpaRequest.getBPA();
-		if (bpa.getWorkflow().getAction() != null && (bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_REJECT)
-				|| bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_REVOCATE))) {
+		if (bpa.getWorkflow().getAction() != null
+				&& (bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_REJECT)
+						|| bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_REVOCATE))) {
 
 			if (bpa.getWorkflow().getComments() == null || bpa.getWorkflow().getComments().isEmpty()) {
 				throw new CustomException(BPAErrorConstants.BPA_UPDATE_ERROR_COMMENT_REQUIRED,
@@ -475,48 +488,50 @@ public class BPAService {
 			nocService.handleBPARejectedStateForNoc(bpaRequest);
 
 		} else {
-			
+
 			if (!bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_SENDBACKTOCITIZEN)) {
 				actionValidator.validateUpdateRequest(bpaRequest, businessService);
 				bpaValidator.validateUpdate(bpaRequest, searchResult, mdmsData,
-				workflowService.getCurrentState(bpa.getStatus(), businessService), edcrResponse);
+						workflowService.getCurrentState(bpa.getStatus(), businessService), values);
 				if (!applicationType.equalsIgnoreCase(BPAConstants.BUILDING_PLAN_OC)) {
 					landService.updateLandInfo(bpaRequest);
 				}
 				bpaValidator.validateCheckList(mdmsData, bpaRequest,
-				workflowService.getCurrentState(bpa.getStatus(), businessService));
+						workflowService.getCurrentState(bpa.getStatus(), businessService));
 			}
 		}
 	}
 
 	/**
 	 * for OC application update logic is handled which specific to OC
+	 * 
 	 * @param applicationType
 	 * @param approvalNo
 	 * @param bpaRequest
 	 * @param requestInfo
 	 * @param additionalDetails
 	 */
-	private void processOcUpdate(String applicationType, String approvalNo, BPARequest bpaRequest,RequestInfo requestInfo,Map<String, String> additionalDetails ) {
+	private void processOcUpdate(String applicationType, String approvalNo, BPARequest bpaRequest,
+			RequestInfo requestInfo, Map<String, String> additionalDetails) {
 		if (applicationType.equalsIgnoreCase(BPAConstants.BUILDING_PLAN_OC)) {
-			
+
 			BPASearchCriteria criteria = new BPASearchCriteria();
 			criteria.setTenantId(bpaRequest.getBPA().getTenantId());
 			criteria.setApprovalNo(approvalNo);
 			List<BPA> bpas = search(criteria, requestInfo);
-			if( bpas.size() <=0 || bpas.size() >1) {
-				throw new CustomException(BPAErrorConstants.UPDATE_ERROR, 
-						( (bpas.size() <=0) ? "BPA not found with approval Number :" : "Multiple BPA applications found for approval number :") + approvalNo);
+			if (bpas.size() <= 0 || bpas.size() > 1) {
+				throw new CustomException(BPAErrorConstants.UPDATE_ERROR,
+						((bpas.size() <= 0) ? "BPA not found with approval Number :"
+								: "Multiple BPA applications found for approval number :") + approvalNo);
+			} else if (bpas.get(0).getStatus().equalsIgnoreCase(BPAConstants.STATUS_REVOCATED)) {
+				throw new CustomException(BPAErrorConstants.UPDATE_ERROR,
+						"This permit number is revocated you cannot use this permit number");
+			} else if (!bpas.get(0).getStatus().equalsIgnoreCase(BPAConstants.STATUS_APPROVED)) {
+				throw new CustomException(BPAErrorConstants.UPDATE_ERROR,
+						"The selected permit number still in workflow approval process, Please apply occupancy after completing approval process.");
 			}
-			else if ( bpas.get(0).getStatus().equalsIgnoreCase(BPAConstants.STATUS_REVOCATED)) {
-				throw new CustomException(BPAErrorConstants.UPDATE_ERROR, "This permit number is revocated you cannot use this permit number");
-			}
-			else if (!bpas.get(0).getStatus().equalsIgnoreCase(BPAConstants.STATUS_APPROVED)) {
-				throw new CustomException(BPAErrorConstants.UPDATE_ERROR, "The selected permit number still in workflow approval process, Please apply occupancy after completing approval process.");
-			}
-			
+
 			additionalDetails.put("landId", bpas.get(0).getLandId());
-			criteria.setEdcrNumber(bpas.get(0).getEdcrNumber());
 			ocService.validateAdditionalData(bpaRequest, criteria);
 			bpaRequest.getBPA().setLandInfo(bpas.get(0).getLandInfo());
 		}
@@ -525,8 +540,7 @@ public class BPAService {
 	/**
 	 * Returns bpa from db for the update request
 	 * 
-	 * @param request
-	 *            The update request
+	 * @param request The update request
 	 * @return List of bpas
 	 */
 	public List<BPA> getBPAWithBPAId(BPARequest request) {
@@ -535,249 +549,247 @@ public class BPAService {
 		ids.add(request.getBPA().getId());
 		criteria.setTenantId(request.getBPA().getTenantId());
 		criteria.setIds(ids);
-		List<BPA> bpa = repository.getBPAData(criteria, null);
-		return bpa;
+		return repository.getBPAData(criteria);
 	}
 
 	/**
-	     * downloads the EDCR Report from the edcr system and stamp the permit no and generated date on the download pdf and return
-	     * @param bpaRequest
-	     */
-	    public void getEdcrPdf(BPARequest bpaRequest) {
+	 * downloads the EDCR Report from the edcr system and stamp the permit no and
+	 * generated date on the download pdf and return
+	 * 
+	 * @param bpaRequest
+	 */
+	public void getEdcrPdf(BPARequest bpaRequest) {
 
-	        String fileName = BPAConstants.EDCR_PDF;
-	        PdfDocument pdfDoc = null;
-	        BPA bpa = bpaRequest.getBPA();
+		String fileName = BPAConstants.EDCR_PDF;
+		PdfDocument pdfDoc = null;
+		BPA bpa = bpaRequest.getBPA();
 
-	        if (StringUtils.isEmpty(bpa.getApprovalNo())) {
-	            throw new CustomException(BPAErrorConstants.INVALID_REQUEST, "Approval Number is required.");
-	        }
+		if (StringUtils.isEmpty(bpa.getApprovalNo())) {
+			throw new CustomException(BPAErrorConstants.INVALID_REQUEST, "Approval Number is required.");
+		}
 
-	        try {
-	            pdfDoc = createTempReport(bpaRequest, fileName);
-	            String localizationMessages = notificationUtil.getLocalizationMessages(bpa.getTenantId(),
-	                    bpaRequest.getRequestInfo());
-	            String permitNo = notificationUtil.getMessageTemplate(BPAConstants.PERMIT_ORDER_NO, localizationMessages);
-	            permitNo = permitNo != null ? permitNo : BPAConstants.PERMIT_ORDER_NO;
-	            String generatedOn = notificationUtil.getMessageTemplate(BPAConstants.GENERATEDON, localizationMessages);
-	            generatedOn = generatedOn != null ? generatedOn : BPAConstants.GENERATEDON;
-	            if(pdfDoc != null)
-	                addDataToPdf(pdfDoc, bpaRequest, permitNo, generatedOn, fileName);
+		try {
+			pdfDoc = createTempReport(bpaRequest, fileName);
+			String localizationMessages = notificationUtil.getLocalizationMessages(bpa.getTenantId(),
+					bpaRequest.getRequestInfo());
+			String permitNo = notificationUtil.getMessageTemplate(BPAConstants.PERMIT_ORDER_NO, localizationMessages);
+			permitNo = permitNo != null ? permitNo : BPAConstants.PERMIT_ORDER_NO;
+			String generatedOn = notificationUtil.getMessageTemplate(BPAConstants.GENERATEDON, localizationMessages);
+			generatedOn = generatedOn != null ? generatedOn : BPAConstants.GENERATEDON;
+			if (pdfDoc != null)
+				addDataToPdf(pdfDoc, bpaRequest, permitNo, generatedOn, fileName);
 
-	        } catch (IOException ex) {
-	            log.debug("Exception occured while downloading pdf", ex.getMessage());
-	            throw new CustomException(BPAErrorConstants.UNABLE_TO_DOWNLOAD, "Unable to download the file");
-	        } finally {
-	            if (pdfDoc != null && !pdfDoc.isClosed())
-                        pdfDoc.close();
-                }
-            }
+		} catch (IOException ex) {
+			log.debug("Exception occured while downloading pdf", ex.getMessage());
+			throw new CustomException(BPAErrorConstants.UNABLE_TO_DOWNLOAD, "Unable to download the file");
+		} finally {
+			if (pdfDoc != null && !pdfDoc.isClosed())
+				pdfDoc.close();
+		}
+	}
 
-            /**
-             * make edcr call and get the edcr report url to download the edcr report
-             * @param bpaRequest
-             * @return
-             */
-            private URL getEdcrReportDownloaUrl(BPARequest bpaRequest) {
-                String pdfUrl = edcrService.getEDCRPdfUrl(bpaRequest);
-                URL downloadUrl = null;
-                try {
-                    downloadUrl = new URL(pdfUrl);
-                    log.debug("Connecting to redirect url" + downloadUrl.toString() + " ... ");
-                    URLConnection urlConnection = downloadUrl.openConnection();
+	/**
+	 * make edcr call and get the edcr report url to download the edcr report
+	 * 
+	 * @param bpaRequest
+	 * @return
+	 */
+	private URL getEdcrReportDownloaUrl(BPARequest bpaRequest) {
+		String pdfUrl = edcrService.getEDCRPdfUrl(bpaRequest);
+		URL downloadUrl = null;
+		try {
+			downloadUrl = new URL(pdfUrl);
+			log.debug("Connecting to redirect url" + downloadUrl.toString() + " ... ");
+			URLConnection urlConnection = downloadUrl.openConnection();
 
-                    // Checking whether the URL contains a PDF
-                    if (!urlConnection.getContentType().equalsIgnoreCase("application/pdf")) {
-                        String downloadUrlString = urlConnection.getHeaderField("Location");
-                        if (!StringUtils.isEmpty(downloadUrlString)) {
-                            downloadUrl = new URL(downloadUrlString);
-                            log.debug("Connecting to download url" + downloadUrl.toString() + " ... ");
-                            urlConnection = downloadUrl.openConnection();
-                            if (!urlConnection.getContentType().equalsIgnoreCase("application/pdf")) {
-                                log.error("Download url content type is not application/pdf.");
-                                throw new CustomException(BPAErrorConstants.INVALID_EDCR_REPORT,
-                                        "Download url content type is not application/pdf.");
-                            }
-                        } else {
-                            log.error("Unable to fetch the location header URL");
-                            throw new CustomException(BPAErrorConstants.INVALID_EDCR_REPORT, "Unable to fetch the location header URL");
-                        }
-                    }
-                } catch (IOException e) {
-                    log.error("Invalid download URL::" + pdfUrl);
-                    throw new CustomException(BPAErrorConstants.INVALID_EDCR_REPORT, "Invalid download URL::" + pdfUrl);
-                }
+			// Checking whether the URL contains a PDF
+			if (!urlConnection.getContentType().equalsIgnoreCase("application/pdf")) {
+				String downloadUrlString = urlConnection.getHeaderField("Location");
+				if (!StringUtils.isEmpty(downloadUrlString)) {
+					downloadUrl = new URL(downloadUrlString);
+					log.debug("Connecting to download url" + downloadUrl.toString() + " ... ");
+					urlConnection = downloadUrl.openConnection();
+					if (!urlConnection.getContentType().equalsIgnoreCase("application/pdf")) {
+						log.error("Download url content type is not application/pdf.");
+						throw new CustomException(BPAErrorConstants.INVALID_EDCR_REPORT,
+								"Download url content type is not application/pdf.");
+					}
+				} else {
+					log.error("Unable to fetch the location header URL");
+					throw new CustomException(BPAErrorConstants.INVALID_EDCR_REPORT,
+							"Unable to fetch the location header URL");
+				}
+			}
+		} catch (IOException e) {
+			log.error("Invalid download URL::" + pdfUrl);
+			throw new CustomException(BPAErrorConstants.INVALID_EDCR_REPORT, "Invalid download URL::" + pdfUrl);
+		}
 
-                return downloadUrl;
-            }
+		return downloadUrl;
+	}
 
-            /**
-             * download the edcr report and create in tempfile
-             * @param bpaRequest
-             * @param fileName
-             * return PdfDocument
-             */
-            private PdfDocument createTempReport(BPARequest bpaRequest, String fileName) {
+	/**
+	 * download the edcr report and create in tempfile
+	 * 
+	 * @param bpaRequest
+	 * @param fileName   return PdfDocument
+	 */
+	private PdfDocument createTempReport(BPARequest bpaRequest, String fileName) {
 
-                InputStream readStream = null;
-                PdfDocument pdfDocument = null;
-                try {
-                    URL downloadUrl = this.getEdcrReportDownloaUrl(bpaRequest);
-                    readStream = downloadUrl.openStream();
-                    pdfDocument = new PdfDocument(new PdfReader(readStream),
-                            new PdfWriter(fileName));
+		InputStream readStream = null;
+		PdfDocument pdfDocument = null;
+		try {
+			URL downloadUrl = this.getEdcrReportDownloaUrl(bpaRequest);
+			readStream = downloadUrl.openStream();
+			pdfDocument = new PdfDocument(new PdfReader(readStream), new PdfWriter(fileName));
 
-                } catch (IOException e) {
-                    log.error("Error while creating temp report.");
-                } finally {
-                    try {
-                        readStream.close();
-                    } catch (IOException e) {
-                        log.error("Error while creating temp report.");
-                    }
-                }
-                return pdfDocument;
-            }
+		} catch (IOException e) {
+			log.error("Error while creating temp report.");
+		} finally {
+			try {
+				readStream.close();
+			} catch (IOException e) {
+				log.error("Error while creating temp report.");
+			}
+		}
+		return pdfDocument;
+	}
 
-            private void addDataToPdf(PdfDocument pdfDoc, BPARequest bpaRequest, String permitNo, String generatedOn, String fileName)
-                    throws IOException {
+	private void addDataToPdf(PdfDocument pdfDoc, BPARequest bpaRequest, String permitNo, String generatedOn,
+			String fileName) throws IOException {
 
-                BPA bpa = bpaRequest.getBPA();
-                Document doc = new Document(pdfDoc);
-                Paragraph headerLeft = new Paragraph(permitNo + " : " + bpaRequest.getBPA().getApprovalNo())
-                        .setFont(PdfFontFactory.createFont(StandardFonts.TIMES_ROMAN))
-                        .setFontSize(10);
-                String generatedOnMsg;
-                if (bpa.getApprovalDate() != null) {
-                    Date date = new Date(bpa.getApprovalDate());
-                    DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
-                    String formattedDate = format.format(date);
-                    generatedOnMsg = generatedOn + " : " + formattedDate;
-                } else {
-                    generatedOnMsg = generatedOn + " : " + "NA";
-                }
-                Paragraph headerRight = new Paragraph(generatedOnMsg)
-                        .setFont(PdfFontFactory.createFont(StandardFonts.TIMES_ROMAN))
-                        .setFontSize(10);
+		BPA bpa = bpaRequest.getBPA();
+		Document doc = new Document(pdfDoc);
+		Paragraph headerLeft = new Paragraph(permitNo + " : " + bpaRequest.getBPA().getApprovalNo())
+				.setFont(PdfFontFactory.createFont(StandardFonts.TIMES_ROMAN)).setFontSize(10);
+		String generatedOnMsg;
+		if (bpa.getApprovalDate() != null) {
+			Date date = new Date(bpa.getApprovalDate());
+			DateFormat format = new SimpleDateFormat("dd/MM/yyyy");
+			String formattedDate = format.format(date);
+			generatedOnMsg = generatedOn + " : " + formattedDate;
+		} else {
+			generatedOnMsg = generatedOn + " : " + "NA";
+		}
+		Paragraph headerRight = new Paragraph(generatedOnMsg)
+				.setFont(PdfFontFactory.createFont(StandardFonts.TIMES_ROMAN)).setFontSize(10);
 
-                for (int i = 1; i <= pdfDoc.getNumberOfPages(); i++) {
-                    Rectangle pageSize = pdfDoc.getPage(i).getPageSize();
-                    float margin = 32;
-                    float x = pageSize.getX() + margin;
-                    float y = pageSize.getTop() - (margin / 2);
-                    doc.showTextAligned(headerLeft, x, y, i, TextAlignment.LEFT, VerticalAlignment.BOTTOM, 0);
-                    float x1 = pageSize.getWidth() - 22;
-                    float y1 = pageSize.getTop() - (margin / 2);
-                    doc.showTextAligned(headerRight, x1, y1, i, TextAlignment.RIGHT, VerticalAlignment.BOTTOM, 0);
-                }
-                pdfDoc.close();
-                doc.close();
-            }
-        
-        public int getBPACount(BPASearchCriteria criteria, RequestInfo requestInfo) {
-            
+		for (int i = 1; i <= pdfDoc.getNumberOfPages(); i++) {
+			Rectangle pageSize = pdfDoc.getPage(i).getPageSize();
+			float margin = 32;
+			float x = pageSize.getX() + margin;
+			float y = pageSize.getTop() - (margin / 2);
+			doc.showTextAligned(headerLeft, x, y, i, TextAlignment.LEFT, VerticalAlignment.BOTTOM, 0);
+			float x1 = pageSize.getWidth() - 22;
+			float y1 = pageSize.getTop() - (margin / 2);
+			doc.showTextAligned(headerRight, x1, y1, i, TextAlignment.RIGHT, VerticalAlignment.BOTTOM, 0);
+		}
+		pdfDoc.close();
+		doc.close();
+	}
 
-            LandSearchCriteria landcriteria = new LandSearchCriteria();
-            landcriteria.setTenantId(criteria.getTenantId());
-            landcriteria.setLocality(criteria.getLocality());
-            List<String> edcrNos = null;
-            if (criteria.getMobileNumber() != null) {
-                landcriteria.setMobileNumber(criteria.getMobileNumber());
-                ArrayList<LandInfo> landInfo = landService.searchLandInfoToBPA(requestInfo, landcriteria);
-                ArrayList<String> landId = new ArrayList<>();
-                if (!landInfo.isEmpty()) {
-                        landInfo.forEach(land -> landId.add(land.getId()));
-                        criteria.setLandId(landId);
-                } 
-            } else {
-                List<String> roles = new ArrayList<>();
-                for (Role role : requestInfo.getUserInfo().getRoles()) {
-                        roles.add(role.getCode());
-                }
-                if ((criteria.tenantIdOnly() || criteria.isEmpty()) && roles.contains(BPAConstants.CITIZEN)) {
-                    UserSearchRequest userSearchRequest = new UserSearchRequest();
-                    if (criteria.getTenantId() != null) {
-                            userSearchRequest.setTenantId(criteria.getTenantId());
-                    }
-                    List<String> uuids = new ArrayList<>();
-                    if (requestInfo.getUserInfo() != null && !StringUtils.isEmpty(requestInfo.getUserInfo().getUuid())) {
-                            uuids.add(requestInfo.getUserInfo().getUuid());
-                            criteria.setOwnerIds(uuids);
-                            criteria.setCreatedBy(uuids);
-                    }
-                    UserDetailResponse userInfo = userService.getUser(criteria, requestInfo);
-                    if (userInfo != null) {
-                            landcriteria.setMobileNumber(userInfo.getUser().get(0).getMobileNumber());
-                    }
-                    ArrayList<LandInfo> landInfos = landService.searchLandInfoToBPA(requestInfo, landcriteria);
-                    ArrayList<String> landIds = new ArrayList<>();
-                    if (!landInfos.isEmpty()) {
-                            landInfos.forEach(land -> landIds.add(land.getId()));
-                            criteria.setLandId(landIds);
-                    }
-                }
-            }
-            return repository.getBPACount(criteria, edcrNos);
-        
-        }
-        
-        public List<BPA> plainSearch(BPASearchCriteria criteria, RequestInfo requestInfo) {
-    		List<BPA> bpas = new LinkedList<>();
-    		bpaValidator.validateSearch(requestInfo, criteria);
-    		LandSearchCriteria landcriteria = new LandSearchCriteria();
-    		List<String> edcrNos = null;
+	public int getBPACount(BPASearchCriteria criteria, RequestInfo requestInfo) {
 
-    		List<String> roles = new ArrayList<>();
-    		for (Role role : requestInfo.getUserInfo().getRoles()) {
-    			roles.add(role.getCode());
-    		}
+		LandSearchCriteria landcriteria = new LandSearchCriteria();
+		landcriteria.setTenantId(criteria.getTenantId());
+		landcriteria.setLocality(criteria.getLocality());
 
-    		bpas = getBPAFromCriteriaForPlainSearch(criteria, requestInfo, edcrNos);
-    		ArrayList<String> landIds = new ArrayList<>();
-    		if (!bpas.isEmpty()) {	
-    			for (int i = 0; i < bpas.size(); i++) {
-    				landIds.add(bpas.get(i).getLandId());
-    			}
-    			landcriteria.setIds(landIds);
-    			landcriteria.setTenantId(criteria.getTenantId());
-    			ArrayList<LandInfo> landInfos = landService.searchLandInfoToBPAForPlaneSearch(requestInfo, landcriteria);
+		if (criteria.getMobileNumber() != null) {
+			landcriteria.setMobileNumber(criteria.getMobileNumber());
+			ArrayList<LandInfo> landInfo = landService.searchLandInfoToBPA(requestInfo, landcriteria);
+			ArrayList<String> landId = new ArrayList<>();
+			if (!landInfo.isEmpty()) {
+				landInfo.forEach(land -> landId.add(land.getId()));
+				criteria.setLandId(landId);
+			}
+		} else {
+			List<String> roles = new ArrayList<>();
+			for (Role role : requestInfo.getUserInfo().getRoles()) {
+				roles.add(role.getCode());
+			}
+			if ((criteria.tenantIdOnly() || criteria.isEmpty()) && roles.contains(BPAConstants.CITIZEN)) {
+				UserSearchRequest userSearchRequest = new UserSearchRequest();
+				if (criteria.getTenantId() != null) {
+					userSearchRequest.setTenantId(criteria.getTenantId());
+				}
+				List<String> uuids = new ArrayList<>();
+				if (requestInfo.getUserInfo() != null && !StringUtils.isEmpty(requestInfo.getUserInfo().getUuid())) {
+					uuids.add(requestInfo.getUserInfo().getUuid());
+					criteria.setOwnerIds(uuids);
+					criteria.setCreatedBy(uuids);
+				}
+				UserDetailResponse userInfo = userService.getUser(criteria, requestInfo);
+				if (userInfo != null) {
+					landcriteria.setMobileNumber(userInfo.getUser().get(0).getMobileNumber());
+				}
+				ArrayList<LandInfo> landInfos = landService.searchLandInfoToBPA(requestInfo, landcriteria);
+				ArrayList<String> landIds = new ArrayList<>();
+				if (!landInfos.isEmpty()) {
+					landInfos.forEach(land -> landIds.add(land.getId()));
+					criteria.setLandId(landIds);
+				}
+			}
+		}
+		return repository.getBPACount(criteria);
 
-    			this.populateLandToBPAForPlainSearch(bpas, landInfos,requestInfo);
-    		}
+	}
 
+	public List<BPA> plainSearch(BPASearchCriteria criteria, RequestInfo requestInfo) {
+		bpaValidator.validateSearch(requestInfo, criteria);
+		LandSearchCriteria landcriteria = new LandSearchCriteria();
 
-    		return bpas;
-    	}
-    	
-    	public List<BPA> getBPAFromCriteriaForPlainSearch(BPASearchCriteria criteria, RequestInfo requestInfo, List<String> edcrNos) {
-    		List<BPA> bpa = repository.getBPADataForPlainSearch(criteria, edcrNos);
-    		if (bpa.isEmpty())
-    			return Collections.emptyList();
-    		return bpa;
-    	}
-    	
-    	private void populateLandToBPAForPlainSearch(List<BPA> bpas, List<LandInfo> landInfos, RequestInfo requestInfo) {
-    		for (int i = 0; i < bpas.size(); i++) {
-    			for (int j = 0; j < landInfos.size(); j++) {
-    				if (landInfos.get(j).getId().equalsIgnoreCase(bpas.get(i).getLandId())) {
-    					bpas.get(i).setLandInfo(landInfos.get(j));
-    				}
-    			}
-    			if(bpas.get(i).getLandId() != null && bpas.get(i).getLandInfo() == null) {
-    				LandSearchCriteria missingLandcriteria = new LandSearchCriteria();
-    				List<String> missingLandIds = new ArrayList<>();
-    				missingLandIds.add(bpas.get(i).getLandId());
-    				missingLandcriteria.setTenantId(bpas.get(i).getTenantId());
-    				missingLandcriteria.setIds(missingLandIds);
-    				log.debug("Call with land ids to Land::" + missingLandcriteria.getTenantId() + missingLandcriteria.getIds());
-    				List<LandInfo> newLandInfo = landService.searchLandInfoToBPAForPlaneSearch(requestInfo, missingLandcriteria);
-    				for (int j = 0; j < newLandInfo.size(); j++) {
-    					if (newLandInfo.get(j).getId().equalsIgnoreCase(bpas.get(i).getLandId())) {
-    						bpas.get(i).setLandInfo(newLandInfo.get(j));
-    					}
-    				}
-    			}
-    		}
-    	}
-        
+		List<String> roles = new ArrayList<>();
+		for (Role role : requestInfo.getUserInfo().getRoles()) {
+			roles.add(role.getCode());
+		}
+
+		List<BPA> bpas = getBPAFromCriteriaForPlainSearch(criteria, requestInfo);
+		ArrayList<String> landIds = new ArrayList<>();
+		if (!bpas.isEmpty()) {
+			for (int i = 0; i < bpas.size(); i++) {
+				landIds.add(bpas.get(i).getLandId());
+			}
+			landcriteria.setIds(landIds);
+			landcriteria.setTenantId(criteria.getTenantId());
+			ArrayList<LandInfo> landInfos = landService.searchLandInfoToBPAForPlaneSearch(requestInfo, landcriteria);
+
+			this.populateLandToBPAForPlainSearch(bpas, landInfos, requestInfo);
+		}
+
+		return bpas;
+	}
+
+	public List<BPA> getBPAFromCriteriaForPlainSearch(BPASearchCriteria criteria, RequestInfo requestInfo) {
+		List<BPA> bpa = repository.getBPADataForPlainSearch(criteria);
+		if (bpa.isEmpty())
+			return Collections.emptyList();
+		return bpa;
+	}
+
+	private void populateLandToBPAForPlainSearch(List<BPA> bpas, List<LandInfo> landInfos, RequestInfo requestInfo) {
+		for (int i = 0; i < bpas.size(); i++) {
+			for (int j = 0; j < landInfos.size(); j++) {
+				if (landInfos.get(j).getId().equalsIgnoreCase(bpas.get(i).getLandId())) {
+					bpas.get(i).setLandInfo(landInfos.get(j));
+				}
+			}
+			if (bpas.get(i).getLandId() != null && bpas.get(i).getLandInfo() == null) {
+				LandSearchCriteria missingLandcriteria = new LandSearchCriteria();
+				List<String> missingLandIds = new ArrayList<>();
+				missingLandIds.add(bpas.get(i).getLandId());
+				missingLandcriteria.setTenantId(bpas.get(i).getTenantId());
+				missingLandcriteria.setIds(missingLandIds);
+				log.debug("Call with land ids to Land::" + missingLandcriteria.getTenantId()
+						+ missingLandcriteria.getIds());
+				List<LandInfo> newLandInfo = landService.searchLandInfoToBPAForPlaneSearch(requestInfo,
+						missingLandcriteria);
+				for (int j = 0; j < newLandInfo.size(); j++) {
+					if (newLandInfo.get(j).getId().equalsIgnoreCase(bpas.get(i).getLandId())) {
+						bpas.get(i).setLandInfo(newLandInfo.get(j));
+					}
+				}
+			}
+		}
+	}
+
 }

@@ -27,9 +27,6 @@ public class BPASearchCriteria {
     @JsonProperty("status")
     private String status;
 
-    @JsonProperty("edcrNumber")
-    private String edcrNumber;
-
     @JsonProperty("applicationNo")
     private String applicationNo;
 
@@ -83,7 +80,7 @@ public class BPASearchCriteria {
 
     public boolean isEmpty() {
         return (this.tenantId == null && this.status == null && this.ids == null && this.applicationNo == null
-                && this.mobileNumber == null && this.landId == null && this.edcrNumber == null && this.approvalNo == null
+                && this.mobileNumber == null && this.landId == null && this.approvalNo == null
                 && this.approvalDate == null && this.ownerIds == null
                 && this.businessService == null && this.locality == null && this.applicationType == null && this.serviceType == null 
                 && this.permitNumber == null);
@@ -91,7 +88,7 @@ public class BPASearchCriteria {
 
     public boolean tenantIdOnly() {
         return (this.tenantId != null && this.status == null && this.ids == null && this.applicationNo == null
-                && this.mobileNumber == null && this.landId == null && this.edcrNumber == null && this.approvalNo == null
+                && this.mobileNumber == null && this.landId == null && this.approvalNo == null
                 && this.approvalDate == null && this.ownerIds == null
                 && this.businessService == null && this.locality == null && this.applicationType == null && this.serviceType == null
                 && this.permitNumber == null);

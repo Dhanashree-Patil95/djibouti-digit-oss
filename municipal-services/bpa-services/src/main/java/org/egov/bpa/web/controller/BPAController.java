@@ -47,7 +47,7 @@ public class BPAController {
 	public ResponseEntity<BPAResponse> create(@Valid @RequestBody BPARequest bpaRequest) {
 		bpaUtil.defaultJsonPathConfig();
 		BPA bpa = bpaService.create(bpaRequest);
-		List<BPA> bpas = new ArrayList<BPA>();
+		List<BPA> bpas = new ArrayList<>();
 		bpas.add(bpa);
 		BPAResponse response = BPAResponse.builder().BPA(bpas)
 				.responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(bpaRequest.getRequestInfo(), true))
