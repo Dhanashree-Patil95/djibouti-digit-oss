@@ -27,12 +27,12 @@ public class EDCRService {
 	@SuppressWarnings("rawtypes")
 	public LinkedHashMap getEDCRDetails(RequestInfo requestInfo, BPA bpa) {
 
-		String edcrNo = bpa.getEdcrNumber();
+//		String edcrNo = bpa.getEdcrNumber();
 		StringBuilder uri = new StringBuilder(config.getEdcrHost());
 
 		uri.append(config.getGetPlanEndPoint());
 		uri.append("?").append("tenantId=").append(bpa.getTenantId());
-		uri.append("&").append("edcrNumber=").append(edcrNo);
+//		uri.append("&").append("edcrNumber=").append(edcrNo);
 		RequestInfo edcrRequestInfo = new RequestInfo();
 		BeanUtils.copyProperties(requestInfo, edcrRequestInfo);
 		edcrRequestInfo.setUserInfo(null); // since EDCR service is not
