@@ -1,0 +1,1 @@
+ALTER TABLE eg_bpa_auditdetails DROP COLUMN edcrnumber;
