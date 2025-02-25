@@ -33,7 +33,7 @@ public class BPAQueryBuilder {
 			+ "{schema}.eg_bpa_plotinfo bpaplotinfo ON bpaplotinfo.buildingplanid = bpa.id" + LEFT_OUTER_JOIN_STRING
 			+ "{schema}.eg_bpa_buildinginfo bpabuildinginfo ON bpabuildinginfo.buildingplanid = bpa.id"
 			+ LEFT_OUTER_JOIN_STRING
-			+ "{schema}.eg_bpa_floorinfo bpafloorinfo ON bpafloorinfo.buildingId = bpabuildinginfo.id"
+			+ "{schema}.eg_bpa_floorinfo bpafloorinfo ON bpafloorinfo.buildinginfoId = bpabuildinginfo.id"
 			+ LEFT_OUTER_JOIN_STRING + "{schema}.eg_bpa_document bpadoc ON bpadoc.buildingplanid = bpa.id";
 
 	private final String paginationWrapper = "SELECT * FROM "
