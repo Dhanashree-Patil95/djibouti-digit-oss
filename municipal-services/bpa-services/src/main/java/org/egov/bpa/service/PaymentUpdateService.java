@@ -44,8 +44,8 @@ public class PaymentUpdateService {
 	private ObjectMapper mapper;
 
 	@Autowired
-	public PaymentUpdateService(BPAConfiguration config, BPARepository repository,
-			WorkflowIntegrator wfIntegrator, EnrichmentService enrichmentService, ObjectMapper mapper) {
+	public PaymentUpdateService(BPAConfiguration config, BPARepository repository, WorkflowIntegrator wfIntegrator,
+			EnrichmentService enrichmentService, ObjectMapper mapper) {
 		this.config = config;
 		this.repository = repository;
 		this.wfIntegrator = wfIntegrator;
@@ -63,8 +63,7 @@ public class PaymentUpdateService {
 	/**
 	 * Process the message from kafka and updates the status to paid
 	 * 
-	 * @param record
-	 *            The incoming message from receipt create consumer
+	 * @param record The incoming message from receipt create consumer
 	 */
 	public void process(HashMap<String, Object> record) {
 
@@ -86,7 +85,7 @@ public class PaymentUpdateService {
 					searchCriteria.setTenantId(tenantId);
 //					List<String> codes = Arrays.asList(paymentDetail.getBill().getConsumerCode());
 					searchCriteria.setApplicationNo(paymentDetail.getBill().getConsumerCode());
-					List<BPA> bpas = repository.getBPAData(searchCriteria, null);
+					List<BPA> bpas = repository.getBPAData(searchCriteria);
 					if (CollectionUtils.isEmpty(bpas)) {
 						throw new CustomException(BPAErrorConstants.INVALID_RECEIPT,
 								"No Building Plan Application found for the comsumerCode "
@@ -94,7 +93,7 @@ public class PaymentUpdateService {
 					}
 					Workflow workflow = Workflow.builder().action("PAY").build();
 					bpas.forEach(bpa -> bpa.setWorkflow(workflow));
-					
+
 					// FIXME check if the update call to repository can be avoided
 					// FIXME check why aniket is not using request info from consumer
 					// REMOVE SYSTEM HARDCODING AFTER ALTERING THE CONFIG IN WF FOR TL

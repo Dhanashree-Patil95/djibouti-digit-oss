@@ -13,7 +13,6 @@ import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
 import org.egov.bpa.config.BPAConfiguration;
-import org.egov.bpa.service.EDCRService;
 import org.egov.bpa.service.NocService;
 import org.egov.bpa.util.BPAConstants;
 import org.egov.bpa.util.BPAErrorConstants;
@@ -43,30 +42,29 @@ public class BPAValidator {
 
 	@Autowired
 	private BPAConfiguration config;
-	
-	@Autowired
-	private EDCRService edcrService;
 
 	@Autowired
 	private BPAUtil bpaUtil;
-	
+
 	@Autowired
 	private NocService nocService;
-	
+
 	public void validateCreate(BPARequest bpaRequest, Object mdmsData, Map<String, String> values) {
 		mdmsValidator.validateMdmsData(bpaRequest, mdmsData);
 		validateApplicationDocuments(bpaRequest, mdmsData, null, values);
 	}
 
-
 	/**
-	 * Validates the application documents of the BPA comparing the document types configured in the mdms
+	 * Validates the application documents of the BPA comparing the document types
+	 * configured in the mdms
+	 * 
 	 * @param request
 	 * @param mdmsData
 	 * @param currentState
 	 * @param values
 	 */
-	private void validateApplicationDocuments(BPARequest request, Object mdmsData, String currentState, Map<String, String> values) {
+	private void validateApplicationDocuments(BPARequest request, Object mdmsData, String currentState,
+			Map<String, String> values) {
 		Map<String, List<String>> masterData = mdmsValidator.getAttributeValues(mdmsData);
 		BPA bpa = request.getBPA();
 
@@ -76,11 +74,10 @@ public class BPAValidator {
 
 			String applicationType = values.get(BPAConstants.APPLICATIONTYPE);
 			String serviceType = values.get(BPAConstants.SERVICETYPE);
-			
-			String filterExp = "$.[?(@.applicationType=='" + applicationType + "' && @.ServiceType=='"
-					+ serviceType + "' && @.RiskType=='" + bpa.getRiskType() + "' && @.WFState=='"
-					+ currentState + "')].docTypes";
-			
+
+			String filterExp = "$.[?(@.applicationType=='" + applicationType + "' && @.ServiceType=='" + serviceType
+					+ "' && @.RiskType=='" + bpa.getRiskType() + "' && @.WFState=='" + currentState + "')].docTypes";
+
 			List<Object> docTypeMappings = JsonPath.read(masterData.get(BPAConstants.DOCUMENT_TYPE_MAPPING), filterExp);
 
 			List<Document> allDocuments = new ArrayList<Document>();
@@ -117,7 +114,10 @@ public class BPAValidator {
 					allDocuments.forEach(document -> {
 
 						String docType = document.getDocumentType();
-						int lastIndex = docType.lastIndexOf(".");
+						int lastIndex = 0;
+						if (docType.startsWith("APPL")) {
+							lastIndex = docType.lastIndexOf(".");
+						}
 						String documentNs = "";
 						if (lastIndex > 1) {
 							documentNs = docType.substring(0, lastIndex);
@@ -147,8 +147,9 @@ public class BPAValidator {
 
 	}
 
-	/** 
+	/**
 	 * validate duplicates documents in the bpa request
+	 * 
 	 * @param request
 	 */
 	private void validateDuplicateDocuments(BPARequest request) {
@@ -156,7 +157,8 @@ public class BPAValidator {
 			List<String> documentFileStoreIds = new LinkedList<String>();
 			request.getBPA().getDocuments().forEach(document -> {
 				if (documentFileStoreIds.contains(document.getFileStoreId()))
-					throw new CustomException(BPAErrorConstants.BPA_DUPLICATE_DOCUMENT, "Same document cannot be used multiple times");
+					throw new CustomException(BPAErrorConstants.BPA_DUPLICATE_DOCUMENT,
+							"Same document cannot be used multiple times");
 				else
 					documentFileStoreIds.add(document.getFileStoreId());
 			});
@@ -166,10 +168,8 @@ public class BPAValidator {
 	/**
 	 * Validates if the search parameters are valid
 	 * 
-	 * @param requestInfo
-	 *            The requestInfo of the incoming request
-	 * @param criteria
-	 *            The BPASearch Criteria
+	 * @param requestInfo The requestInfo of the incoming request
+	 * @param criteria    The BPASearch Criteria
 	 */
 //TODO need to make the changes in the data
 	public void validateSearch(RequestInfo requestInfo, BPASearchCriteria criteria) {
@@ -205,18 +205,13 @@ public class BPAValidator {
 	/**
 	 * Validates if the paramters coming in search are allowed
 	 * 
-	 * @param criteria
-	 *            BPA search criteria
-	 * @param allowedParams
-	 *            Allowed Params for search
+	 * @param criteria      BPA search criteria
+	 * @param allowedParams Allowed Params for search
 	 */
 	private void validateSearchParams(BPASearchCriteria criteria, List<String> allowedParams) {
 
 		if (criteria.getApplicationNo() != null && !allowedParams.contains("applicationNo"))
 			throw new CustomException(BPAErrorConstants.INVALID_SEARCH, "Search on applicationNo is not allowed");
-
-		if (criteria.getEdcrNumber() != null && !allowedParams.contains("edcrNumber"))
-			throw new CustomException(BPAErrorConstants.INVALID_SEARCH, "Search on edcrNumber is not allowed");
 
 		if (criteria.getStatus() != null && !allowedParams.contains("status"))
 			throw new CustomException(BPAErrorConstants.INVALID_SEARCH, "Search on Status is not allowed");
@@ -232,10 +227,11 @@ public class BPAValidator {
 
 		if (criteria.getLimit() != null && !allowedParams.contains("limit"))
 			throw new CustomException(BPAErrorConstants.INVALID_SEARCH, "Search on limit is not allowed");
-		
+
 		if (criteria.getApprovalDate() != null && (criteria.getApprovalDate() > new Date().getTime()))
-			throw new CustomException(BPAErrorConstants.INVALID_SEARCH, "Permit Order Genarated date cannot be a future date");
-		
+			throw new CustomException(BPAErrorConstants.INVALID_SEARCH,
+					"Permit Order Genarated date cannot be a future date");
+
 		if (criteria.getFromDate() != null && (criteria.getFromDate() > new Date().getTime()))
 			throw new CustomException(BPAErrorConstants.INVALID_SEARCH, "From date cannot be a future date");
 
@@ -246,16 +242,18 @@ public class BPAValidator {
 
 	/**
 	 * valide the update BPARequest
+	 * 
 	 * @param bpaRequest
 	 * @param searchResult
 	 * @param mdmsData
 	 * @param currentState
 	 * @param edcrResponse
 	 */
-	public void validateUpdate(BPARequest bpaRequest, List<BPA> searchResult, Object mdmsData, String currentState, Map<String, String> edcrResponse) {
+	public void validateUpdate(BPARequest bpaRequest, List<BPA> searchResult, Object mdmsData, String currentState,
+			Map<String, String> values) {
 
 		BPA bpa = bpaRequest.getBPA();
-		validateApplicationDocuments(bpaRequest, mdmsData, currentState, edcrResponse);
+		validateApplicationDocuments(bpaRequest, mdmsData, currentState, values);
 		validateAllIds(searchResult, bpa);
 		mdmsValidator.validateMdmsData(bpaRequest, mdmsData);
 		validateDuplicateDocuments(bpaRequest);
@@ -265,6 +263,7 @@ public class BPAValidator {
 
 	/**
 	 * set the fields from search response to the bpaRequest for furhter processing
+	 * 
 	 * @param bpaRequest
 	 * @param searchResult
 	 * @param mdmsData
@@ -283,10 +282,9 @@ public class BPAValidator {
 		bpaRequest.getBPA().setStatus(idToBPAFromSearch.get(bpaRequest.getBPA().getId()).getStatus());
 	}
 
-
-
 	/**
 	 * Validate the ids of the search results
+	 * 
 	 * @param searchResult
 	 * @param bpa
 	 */
@@ -307,49 +305,47 @@ public class BPAValidator {
 		if (!searchedBpa.getId().equalsIgnoreCase(bpa.getId()))
 			errorMap.put("INVALID UPDATE", "The id " + bpa.getId() + " does not exist");
 
-
-
-
 		if (!CollectionUtils.isEmpty(errorMap))
 			throw new CustomException(errorMap);
 	}
 
-
-
-
 	/**
-	 * validate the fields inspection checlist data populated by the user against the mdms
+	 * validate the fields inspection checlist data populated by the user against
+	 * the mdms
+	 * 
 	 * @param mdmsData
 	 * @param bpaRequest
 	 * @param wfState
 	 */
+	@SuppressWarnings("unchecked")
 	public void validateCheckList(Object mdmsData, BPARequest bpaRequest, String wfState) {
 		BPA bpa = bpaRequest.getBPA();
-		Map<String, String> edcrResponse = edcrService.getEDCRDetails(bpaRequest.getRequestInfo(), bpaRequest.getBPA());
-		log.debug("applicationType is " + edcrResponse.get(BPAConstants.APPLICATIONTYPE));
-        log.debug("serviceType is " + edcrResponse.get(BPAConstants.SERVICETYPE));
-        
-		validateQuestions(mdmsData, bpa, wfState, edcrResponse);
-		validateFIDocTypes(mdmsData, bpa, wfState, edcrResponse);
+		Map<String, String> values = (Map<String, String>) bpa.getAdditionalDetails();
+		log.debug("applicationType is " + values.get(BPAConstants.APPLICATIONTYPE));
+		log.debug("serviceType is " + values.get(BPAConstants.SERVICETYPE));
+
+		validateQuestions(mdmsData, bpa, wfState, values);
+		validateFIDocTypes(mdmsData, bpa, wfState, values);
 	}
 
 	/**
 	 * validate the fields insepction report questions agains the MDMS
+	 * 
 	 * @param mdmsData
 	 * @param bpa
 	 * @param wfState
 	 * @param edcrResponse
 	 */
 	@SuppressWarnings(value = { "unchecked", "rawtypes" })
-	private void validateQuestions(Object mdmsData, BPA bpa, String wfState, Map<String, String> edcrResponse) {
+	private void validateQuestions(Object mdmsData, BPA bpa, String wfState, Map<String, String> values) {
 		List<String> mdmsQns = null;
 
 		log.debug("Fetching MDMS result for the state " + wfState);
 
 		try {
 			String questionsPath = BPAConstants.QUESTIONS_MAP.replace("{1}", wfState)
-					.replace("{2}", bpa.getRiskType().toString()).replace("{3}", edcrResponse.get(BPAConstants.SERVICETYPE))
-					.replace("{4}", edcrResponse.get(BPAConstants.APPLICATIONTYPE));
+					.replace("{2}", bpa.getRiskType().toString()).replace("{3}", values.get(BPAConstants.SERVICETYPE))
+					.replace("{4}", values.get(BPAConstants.APPLICATIONTYPE));
 
 			List<Object> mdmsQuestionsArray = (List<Object>) JsonPath.read(mdmsData, questionsPath);
 
@@ -373,7 +369,7 @@ public class BPAValidator {
 							}
 							List<Map> requestCheckList = new ArrayList<Map>();
 							List<String> requestQns = new ArrayList<String>();
-							validateDateTime((Map)checkListFromReq.get(i));
+							validateDateTime((Map) checkListFromReq.get(i));
 							List<Map> questions = ((Map) checkListFromReq.get(i))
 									.get(BPAConstants.QUESTIONS_TYPE) != null
 											? (List<Map>) ((Map) checkListFromReq.get(i))
@@ -411,10 +407,12 @@ public class BPAValidator {
 							}
 						}
 					} else {
-						throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_QUESTIONS, BPAErrorConstants.BPA_UNKNOWN_QUESTIONS_MSG);
+						throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_QUESTIONS,
+								BPAErrorConstants.BPA_UNKNOWN_QUESTIONS_MSG);
 					}
 				} else {
-					throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_QUESTIONS, BPAErrorConstants.BPA_UNKNOWN_QUESTIONS_MSG);
+					throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_QUESTIONS,
+							BPAErrorConstants.BPA_UNKNOWN_QUESTIONS_MSG);
 				}
 			}
 		} catch (PathNotFoundException ex) {
@@ -424,6 +422,7 @@ public class BPAValidator {
 
 	/**
 	 * Validate fieldinspection documents and their documentTypes
+	 * 
 	 * @param mdmsData
 	 * @param bpa
 	 * @param wfState
@@ -437,8 +436,10 @@ public class BPAValidator {
 
 		try {
 			String docTypesPath = BPAConstants.DOCTYPES_MAP.replace("{1}", wfState)
-					.replace("{2}", bpa.getRiskType().toString()).replace("{3}", edcrResponse.get(BPAConstants.SERVICETYPE))
-					.replace("{4}", edcrResponse.get(BPAConstants.APPLICATIONTYPE));;
+					.replace("{2}", bpa.getRiskType().toString())
+					.replace("{3}", edcrResponse.get(BPAConstants.SERVICETYPE))
+					.replace("{4}", edcrResponse.get(BPAConstants.APPLICATIONTYPE));
+			;
 
 			List<Object> docTypesArray = (List<Object>) JsonPath.read(mdmsData, docTypesPath);
 
@@ -454,10 +455,11 @@ public class BPAValidator {
 							List<Map> requestCheckList = new ArrayList<Map>();
 							List<String> requestDocs = new ArrayList<String>();
 							List<Map> docs = ((Map) checkListFromReq.get(i)).get(BPAConstants.DOCS) != null
-									? (List<Map>) ((Map) checkListFromReq.get(i)).get(BPAConstants.DOCS) : null;
+									? (List<Map>) ((Map) checkListFromReq.get(i)).get(BPAConstants.DOCS)
+									: null;
 							if (docs != null)
 								requestCheckList.addAll(docs);
-							
+
 							if (!CollectionUtils.isEmpty(requestCheckList)) {
 								for (Map reqDoc : requestCheckList) {
 									String fileStoreId = ((String) reqDoc.get(BPAConstants.FILESTOREID));
@@ -500,23 +502,27 @@ public class BPAValidator {
 									}
 								}
 							} else {
-								throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DOCS, BPAErrorConstants.BPA_UNKNOWN_DOCS_MSG);
+								throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DOCS,
+										BPAErrorConstants.BPA_UNKNOWN_DOCS_MSG);
 							}
 						}
 					} else {
-						throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DOCS, BPAErrorConstants.BPA_UNKNOWN_DOCS_MSG);
+						throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DOCS,
+								BPAErrorConstants.BPA_UNKNOWN_DOCS_MSG);
 					}
 				} else {
-					throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DOCS, BPAErrorConstants.BPA_UNKNOWN_DOCS_MSG);
+					throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DOCS,
+							BPAErrorConstants.BPA_UNKNOWN_DOCS_MSG);
 				}
 			}
 		} catch (PathNotFoundException ex) {
 			log.error("Exception occured while validating the Checklist Documents" + ex.getMessage());
 		}
 	}
-	
+
 	/**
 	 * Validate FieldINpsection report date and time
+	 * 
 	 * @param checkListFromRequest
 	 */
 	private void validateDateTime(@SuppressWarnings("rawtypes") Map checkListFromRequest) {
@@ -531,9 +537,11 @@ public class BPAValidator {
 				dt = sdf.parse(checkListFromRequest.get(BPAConstants.INSPECTION_DATE).toString());
 				long inspectionEpoch = dt.getTime();
 				if (inspectionEpoch > new Date().getTime()) {
-					throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DATE, "Inspection date cannot be a future date");
+					throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DATE,
+							"Inspection date cannot be a future date");
 				} else if (inspectionEpoch < 0) {
-					throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DATE, "Provide the date in specified format 'yyyy-MM-dd'");
+					throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DATE,
+							"Provide the date in specified format 'yyyy-MM-dd'");
 				}
 			} catch (ParseException e) {
 				throw new CustomException(BPAErrorConstants.BPA_UNKNOWN_DATE, "Unable to parase the inspection date");
@@ -547,29 +555,35 @@ public class BPAValidator {
 
 	/**
 	 * validate the workflow and the nocapproval stages to move forward
+	 * 
 	 * @param bpaRequest
 	 * @param mdmsRes
 	 */
-	public void validatePreEnrichData(BPARequest bpaRequest, Object mdmsRes) {		
+	public void validatePreEnrichData(BPARequest bpaRequest, Object mdmsRes) {
 		validateSkipPaymentAction(bpaRequest);
 		validateNocApprove(bpaRequest, mdmsRes);
 	}
+
 	/**
-	 * Validate workflowActions against the skipPayment 
+	 * Validate workflowActions against the skipPayment
+	 * 
 	 * @param bpaRequest
 	 */
 	private void validateSkipPaymentAction(BPARequest bpaRequest) {
 		BPA bpa = bpaRequest.getBPA();
-		if (bpa.getWorkflow().getAction() != null && (bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_SKIP_PAY))) {
+		if (bpa.getWorkflow().getAction() != null
+				&& (bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_SKIP_PAY))) {
 			BigDecimal demandAmount = bpaUtil.getDemandAmount(bpaRequest);
 			if ((demandAmount.compareTo(BigDecimal.ZERO) > 0)) {
-				throw new CustomException(BPAErrorConstants.BPA_INVALID_ACTION, "Payment can't be skipped once demand is generated.");
+				throw new CustomException(BPAErrorConstants.BPA_INVALID_ACTION,
+						"Payment can't be skipped once demand is generated.");
 			}
 		}
 	}
-	
+
 	/**
 	 * Validates the NOC approval state to move forward the bpa applicaiton
+	 * 
 	 * @param bpaRequest
 	 * @param mdmsRes
 	 */
@@ -577,42 +591,38 @@ public class BPAValidator {
 	private void validateNocApprove(BPARequest bpaRequest, Object mdmsRes) {
 		BPA bpa = bpaRequest.getBPA();
 		log.debug("===========> valdiateNocApprove method called");
-		if (config.getValidateRequiredNoc()) {
-			if (bpa.getStatus().equalsIgnoreCase(BPAConstants.NOCVERIFICATION_STATUS)
-					&& bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_FORWORD)) {
-				Map<String, String> edcrResponse = edcrService.getEDCRDetails(bpaRequest.getRequestInfo(),
-						bpaRequest.getBPA());
-				log.debug("===========> valdiateNocApprove method called, application is in noc verification pending");
-				String riskType = "ALL";
-				if (StringUtils.isEmpty(bpa.getRiskType()) || bpa.getRiskType().equalsIgnoreCase("LOW")) {
-					riskType = bpa.getRiskType();
-				}
-				log.debug("fetching NocTypeMapping record having riskType : " + riskType);
+		if (config.getValidateRequiredNoc() && bpa.getStatus().equalsIgnoreCase(BPAConstants.NOCVERIFICATION_STATUS)
+				&& bpa.getWorkflow().getAction().equalsIgnoreCase(BPAConstants.ACTION_FORWORD)) {
+			Map<String, String> values = (Map<String, String>) bpa.getAdditionalDetails();
+			log.debug("===========> valdiateNocApprove method called, application is in noc verification pending");
+			String riskType = "ALL";
+			if (StringUtils.isEmpty(bpa.getRiskType()) || bpa.getRiskType().equalsIgnoreCase("LOW")) {
+				riskType = bpa.getRiskType();
+			}
+			log.debug("fetching NocTypeMapping record having riskType : " + riskType);
 
-				String nocPath = BPAConstants.NOCTYPE_REQUIRED_MAP
-						.replace("{1}", edcrResponse.get(BPAConstants.APPLICATIONTYPE))
-						.replace("{2}", edcrResponse.get(BPAConstants.SERVICETYPE)).replace("{3}", riskType);
+			String nocPath = BPAConstants.NOCTYPE_REQUIRED_MAP.replace("{1}", values.get(BPAConstants.APPLICATIONTYPE))
+					.replace("{2}", values.get(BPAConstants.SERVICETYPE)).replace("{3}", riskType);
 
-				List<Object> nocMappingResponse = (List<Object>) JsonPath.read(mdmsRes, nocPath);
-				List<String> nocTypes = JsonPath.read(nocMappingResponse, "$..type");
+			List<Object> nocMappingResponse = (List<Object>) JsonPath.read(mdmsRes, nocPath);
+			List<String> nocTypes = JsonPath.read(nocMappingResponse, "$..type");
 
-				log.debug("===========> valdiateNocApprove method called, noctypes====",nocTypes);
-				List<Noc> nocs = nocService.fetchNocRecords(bpaRequest);
-				if (!CollectionUtils.isEmpty(nocs)) {
-					for (Noc noc : nocs) {
-						if (!nocTypes.isEmpty() && nocTypes.contains(noc.getNocType())) {
-							List<String> statuses = Arrays.asList(config.getNocValidationCheckStatuses().split(","));
-							if(!statuses.contains(noc.getApplicationStatus())) {
-								log.error("Noc is not approved having applicationNo :" + noc.getApplicationNo());
-								throw new CustomException(BPAErrorConstants.NOC_SERVICE_EXCEPTION,
-										" Application can't be forwarded without NOC "
-												+ StringUtils.join(statuses, " or "));
-							}
+			log.debug("===========> valdiateNocApprove method called, noctypes====", nocTypes);
+			List<Noc> nocs = nocService.fetchNocRecords(bpaRequest);
+			if (!CollectionUtils.isEmpty(nocs)) {
+				for (Noc noc : nocs) {
+					if (!nocTypes.isEmpty() && nocTypes.contains(noc.getNocType())) {
+						List<String> statuses = Arrays.asList(config.getNocValidationCheckStatuses().split(","));
+						if (!statuses.contains(noc.getApplicationStatus())) {
+							log.error("Noc is not approved having applicationNo :" + noc.getApplicationNo());
+							throw new CustomException(BPAErrorConstants.NOC_SERVICE_EXCEPTION,
+									" Application can't be forwarded without NOC "
+											+ StringUtils.join(statuses, " or "));
 						}
 					}
-				} else {
-					log.debug("No NOC record found to validate with sourceRefId " + bpa.getApplicationNo());
 				}
+			} else {
+				log.debug("No NOC record found to validate with sourceRefId " + bpa.getApplicationNo());
 			}
 		}
 	}

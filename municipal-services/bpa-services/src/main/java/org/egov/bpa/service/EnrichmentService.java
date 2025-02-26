@@ -1,13 +1,19 @@
 package org.egov.bpa.service;
 
-import com.jayway.jsonpath.Configuration;
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
-import lombok.extern.slf4j.Slf4j;
-import net.logstash.logback.encoder.org.apache.commons.lang.StringUtils;
+import java.math.BigDecimal;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 import org.egov.bpa.config.BPAConfiguration;
 import org.egov.bpa.repository.IdGenRepository;
-import org.egov.bpa.repository.ServiceRequestRepository;
 import org.egov.bpa.util.BPAConstants;
 import org.egov.bpa.util.BPAErrorConstants;
 import org.egov.bpa.util.BPAUtil;
@@ -15,9 +21,10 @@ import org.egov.bpa.validator.MDMSValidator;
 import org.egov.bpa.web.model.AuditDetails;
 import org.egov.bpa.web.model.BPA;
 import org.egov.bpa.web.model.BPARequest;
-
+import org.egov.bpa.web.model.BuildingInfo;
+import org.egov.bpa.web.model.FloorInfo;
+import org.egov.bpa.web.model.PlotInfo;
 import org.egov.bpa.web.model.Workflow;
-import org.egov.bpa.web.model.edcr.RequestInfoWrapper;
 import org.egov.bpa.web.model.idgen.IdResponse;
 import org.egov.bpa.web.model.workflow.BusinessService;
 import org.egov.bpa.workflow.WorkflowIntegrator;
@@ -25,16 +32,14 @@ import org.egov.bpa.workflow.WorkflowService;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.utils.MultiStateInstanceUtil;
 import org.egov.tracer.model.CustomException;
-import org.egov.tracer.model.ServiceCallException;
-import org.json.JSONObject;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.math.BigDecimal;
-import java.util.*;
-import java.util.stream.Collectors;
+import com.jayway.jsonpath.JsonPath;
+
+import lombok.extern.slf4j.Slf4j;
+import net.logstash.logback.encoder.org.apache.commons.lang.StringUtils;
 
 @Service
 @Slf4j
@@ -53,9 +58,6 @@ public class EnrichmentService {
 	private WorkflowService workflowService;
 
 	@Autowired
-	private EDCRService edcrService;
-
-	@Autowired
 	private WorkflowIntegrator wfIntegrator;
 
 	@Autowired
@@ -69,16 +71,10 @@ public class EnrichmentService {
 
 	@Autowired
 	private MDMSValidator mdmsValidator;
-	@Autowired
-	private ServiceRequestRepository serviceRequestRepository;
-
-	@Autowired
-	private MDMSValidator mdmsValidator;
-	@Autowired
-	private ServiceRequestRepository serviceRequestRepository;
 
 	@Autowired
 	private MultiStateInstanceUtil centralInstanceUtil;
+
 	/**
 	 * encrich create BPA Reqeust by adding audidetails and uuids
 	 *
@@ -86,30 +82,57 @@ public class EnrichmentService {
 	 * @param mdmsData
 	 * @param values
 	 */
-	public void enrichBPACreateRequest(BPARequest bpaRequest, Object mdmsData, Map<String, String> values) {
+	public void enrichBPACreateRequest(BPARequest bpaRequest, Map<String, String> values) {
 		RequestInfo requestInfo = bpaRequest.getRequestInfo();
+		BPA bpa = bpaRequest.getBPA();
 		AuditDetails auditDetails = bpaUtil.getAuditDetails(requestInfo.getUserInfo().getUuid(), true);
-		bpaRequest.getBPA().setAuditDetails(auditDetails);
-		bpaRequest.getBPA().setId(UUID.randomUUID().toString());
+		bpa.setAuditDetails(auditDetails);
+		bpa.setId(UUID.randomUUID().toString());
 
-		bpaRequest.getBPA().setAccountId(bpaRequest.getBPA().getAuditDetails().getCreatedBy());
+		if (bpa.getPlotInfo() != null) {
+			PlotInfo plotInfo = bpa.getPlotInfo();
+			if (plotInfo.getId() == null) {
+				plotInfo.setId(UUID.randomUUID().toString());
+			}
+		}
+
+		// BPA building information
+		List<BuildingInfo> buildingInfos = bpa.getBuildingInfos();
+		if (!CollectionUtils.isEmpty(buildingInfos)) {
+			buildingInfos.forEach(buildingInfo -> {
+				if (buildingInfo.getId() == null) {
+					buildingInfo.setId(UUID.randomUUID().toString());
+				}
+				// BPA building floor information
+				List<FloorInfo> floorInfos = buildingInfo.getFloorInfos();
+				if (!CollectionUtils.isEmpty(floorInfos)) {
+					floorInfos.forEach(floor -> {
+						if (floor.getId() == null) {
+							floor.setId(UUID.randomUUID().toString());
+						}
+					});
+				}
+			});
+		}
+
+		bpa.setAccountId(bpa.getAuditDetails().getCreatedBy());
 		String applicationType = values.get(BPAConstants.APPLICATIONTYPE);
 		if (applicationType.equalsIgnoreCase(BPAConstants.BUILDING_PLAN)) {
-			if (!bpaRequest.getBPA().getRiskType().equalsIgnoreCase(BPAConstants.LOW_RISKTYPE)) {
-				bpaRequest.getBPA().setBusinessService(BPAConstants.BPA_MODULE_CODE);
+			if (!bpa.getRiskType().equalsIgnoreCase(BPAConstants.LOW_RISKTYPE)) {
+				bpa.setBusinessService(BPAConstants.BPA_MODULE_CODE);
 			} else {
-				bpaRequest.getBPA().setBusinessService(BPAConstants.BPA_LOW_MODULE_CODE);
+				bpa.setBusinessService(BPAConstants.BPA_LOW_MODULE_CODE);
 			}
 		} else {
-			bpaRequest.getBPA().setBusinessService(BPAConstants.BPA_OC_MODULE_CODE);
-			bpaRequest.getBPA().setLandId(values.get("landId"));
+			bpa.setBusinessService(BPAConstants.BPA_OC_MODULE_CODE);
+			bpa.setLandId(values.get("landId"));
 		}
-		if (bpaRequest.getBPA().getLandInfo() != null) {
-			bpaRequest.getBPA().setLandId(bpaRequest.getBPA().getLandInfo().getId());
+		if (bpa.getLandInfo() != null) {
+			bpa.setLandId(bpa.getLandInfo().getId());
 		}
 		// BPA Documents
-		if (!CollectionUtils.isEmpty(bpaRequest.getBPA().getDocuments()))
-			bpaRequest.getBPA().getDocuments().forEach(document -> {
+		if (!CollectionUtils.isEmpty(bpa.getDocuments()))
+			bpa.getDocuments().forEach(document -> {
 				if (document.getId() == null) {
 					document.setId(UUID.randomUUID().toString());
 				}
@@ -198,10 +221,10 @@ public class EnrichmentService {
 	 *
 	 * @param bpaRequest
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings({ "rawtypes" })
 	public void postStatusEnrichment(BPARequest bpaRequest) {
 		BPA bpa = bpaRequest.getBPA();
-		String tenantId =  centralInstanceUtil.getStateLevelTenant(bpaRequest.getBPA().getTenantId());
+		String tenantId = centralInstanceUtil.getStateLevelTenant(bpaRequest.getBPA().getTenantId());
 		Object mdmsData = util.mDMSCall(bpaRequest.getRequestInfo(), tenantId);
 
 		BusinessService businessService = workflowService.getBusinessService(bpa, bpaRequest.getRequestInfo(),
@@ -218,32 +241,11 @@ public class EnrichmentService {
 				bpa.setRiskType(BPAConstants.LOW_RISKTYPE);
 			} else {
 				Map<String, List<String>> masterData = mdmsValidator.getAttributeValues(mdmsData);
-				StringBuilder uri = new StringBuilder(config.getEdcrHost());
-				uri.append(config.getGetPlanEndPoint());
-				uri.append("?").append("tenantId=").append(centralInstanceUtil.getStateLevelTenant(bpa.getTenantId()));
-				uri.append("&").append("edcrNumber=").append(bpa.getEdcrNumber());
-				org.egov.bpa.web.model.edcr.RequestInfo edcrRequestInfo = new org.egov.bpa.web.model.edcr.RequestInfo();
+				PlotInfo plotInfo = bpa.getPlotInfo();
+				List<BuildingInfo> buildingInfos = bpa.getBuildingInfos();
 
-				BeanUtils.copyProperties(bpaRequest.getRequestInfo(), edcrRequestInfo);
-
-				LinkedHashMap responseMap = null;
-
-				try {
-					responseMap = (LinkedHashMap) serviceRequestRepository.fetchResult(uri,
-							new RequestInfoWrapper(edcrRequestInfo));
-				} catch (ServiceCallException se) {
-					throw new CustomException(BPAErrorConstants.EDCR_ERROR, " EDCR Number is Invalid");
-				}
-
-				if (CollectionUtils.isEmpty(responseMap))
-					throw new CustomException(BPAErrorConstants.EDCR_ERROR, "The response from EDCR service is empty or null");
-				String jsonString = new JSONObject(responseMap).toString();
-
-				DocumentContext context = JsonPath.using(Configuration.defaultConfiguration()).parse(jsonString);
-
-				Integer	plotArea = context.read("edcrDetail[0].planDetail.planInformation.plotArea");
-				Double	buildingHeight = context.read("edcrDetail[0].planDetail.blocks[0].building.buildingHeight");
-
+				Double plotArea = plotInfo.getPlotArea();
+				Double buildingHeight = buildingInfos.get(0).getBuildingHeight();
 
 				List jsonOutput = JsonPath.read(masterData, BPAConstants.RISKTYPE_COMPUTATION);
 				String filterExp = "$.[?((@.fromPlotArea < " + plotArea + " && @.toPlotArea >= " + plotArea
@@ -253,23 +255,17 @@ public class EnrichmentService {
 				List<String> riskTypes = JsonPath.read(jsonOutput, filterExp);
 
 				if (!CollectionUtils.isEmpty(riskTypes)) {
-					String	expectedRiskType  = riskTypes.get(0);
+					String expectedRiskType = riskTypes.get(0);
 					bpa.setRiskType(expectedRiskType);
-				}else
-				{
-					throw new CustomException(BPAErrorConstants.INVALID_RISK_TYPE, "The Risk Type is not valid " );
+				} else {
+					throw new CustomException(BPAErrorConstants.INVALID_RISK_TYPE, "The Risk Type is not valid ");
 				}
-
-
-
-
 			}
 		}
 
 		log.info("Application state is : " + state);
 		this.generateApprovalNo(bpaRequest, state);
 		nocService.initiateNocWorkflow(bpaRequest, mdmsData);
-
 	}
 
 	/**
@@ -279,15 +275,16 @@ public class EnrichmentService {
 	 * @param bpaRequest
 	 * @param state
 	 */
+	@SuppressWarnings("unchecked")
 	private void generateApprovalNo(BPARequest bpaRequest, String state) {
 		BPA bpa = bpaRequest.getBPA();
 		if ((bpa.getBusinessService().equalsIgnoreCase(BPAConstants.BPA_OC_MODULE_CODE)
 				&& bpa.getStatus().equalsIgnoreCase(BPAConstants.APPROVED_STATE))
 				|| (!bpa.getBusinessService().equalsIgnoreCase(BPAConstants.BPA_OC_MODULE_CODE)
-				&& ((!bpa.getRiskType().toString().equalsIgnoreCase(BPAConstants.LOW_RISKTYPE)
-				&& state.equalsIgnoreCase(BPAConstants.APPROVED_STATE))
-				|| (state.equalsIgnoreCase(BPAConstants.DOCVERIFICATION_STATE) && bpa.getRiskType()
-				.toString().equalsIgnoreCase(BPAConstants.LOW_RISKTYPE))))) {
+						&& ((!bpa.getRiskType().equalsIgnoreCase(BPAConstants.LOW_RISKTYPE)
+								&& state.equalsIgnoreCase(BPAConstants.APPROVED_STATE))
+								|| (state.equalsIgnoreCase(BPAConstants.DOCVERIFICATION_STATE) && bpa.getRiskType()
+										.toString().equalsIgnoreCase(BPAConstants.LOW_RISKTYPE))))) {
 			int vailidityInMonths = config.getValidityInMonths();
 			Calendar calendar = Calendar.getInstance();
 			bpa.setApprovalDate(Calendar.getInstance().getTimeInMillis());
@@ -307,18 +304,16 @@ public class EnrichmentService {
 					config.getPermitNoIdgenName(), config.getPermitNoIdgenFormat(), 1).getIdResponses();
 			bpa.setApprovalNo(idResponses.get(0).getId());
 			if (state.equalsIgnoreCase(BPAConstants.DOCVERIFICATION_STATE)
-					&& bpa.getRiskType().toString().equalsIgnoreCase(BPAConstants.LOW_RISKTYPE)) {
+					&& bpa.getRiskType().equalsIgnoreCase(BPAConstants.LOW_RISKTYPE)) {
 
 				Object mdmsData = bpaUtil.mDMSCall(bpaRequest.getRequestInfo(), bpaRequest.getBPA().getTenantId());
-				Map<String, String> edcrResponse = edcrService.getEDCRDetails(bpaRequest.getRequestInfo(),
-						bpaRequest.getBPA());
-				log.debug("applicationType is " + edcrResponse.get(BPAConstants.APPLICATIONTYPE));
-				log.debug("serviceType is " + edcrResponse.get(BPAConstants.SERVICETYPE));
+				Map<String, String> values = (Map<String, String>) bpaRequest.getBPA().getAdditionalDetails();
+				log.debug("applicationType is " + values.get(BPAConstants.APPLICATIONTYPE));
+				log.debug("serviceType is " + values.get(BPAConstants.SERVICETYPE));
 
 				String condeitionsPath = BPAConstants.CONDITIONS_MAP.replace("{1}", BPAConstants.PENDING_APPROVAL_STATE)
-						.replace("{2}", bpa.getRiskType().toString())
-						.replace("{3}", edcrResponse.get(BPAConstants.SERVICETYPE))
-						.replace("{4}", edcrResponse.get(BPAConstants.APPLICATIONTYPE));
+						.replace("{2}", bpa.getRiskType()).replace("{3}", values.get(BPAConstants.SERVICETYPE))
+						.replace("{4}", values.get(BPAConstants.APPLICATIONTYPE));
 				log.debug(condeitionsPath);
 
 				try {
@@ -360,7 +355,7 @@ public class EnrichmentService {
 	 */
 	public void enrichAssignes(BPA bpa) {
 		Workflow wf = bpa.getWorkflow();
-		Map<String,String> mobilenumberToUUIDs = new HashMap<>();
+		Map<String, String> mobilenumberToUUIDs = new HashMap<>();
 		Set<String> assignes = new HashSet<>();
 		if (wf != null && wf.getAssignes() != null)
 			assignes.addAll(wf.getAssignes());
@@ -369,19 +364,19 @@ public class EnrichmentService {
 
 			// Adding owners to assignes list
 			bpa.getLandInfo().getOwners().forEach(ownerInfo -> {
-				if(ownerInfo.getUuid() != null && ownerInfo.getActive()) {
-					mobilenumberToUUIDs.put(ownerInfo.getMobileNumber(),ownerInfo.getUuid());
+				if (ownerInfo.getUuid() != null && ownerInfo.getActive()) {
+					mobilenumberToUUIDs.put(ownerInfo.getMobileNumber(), ownerInfo.getUuid());
 				}
 			});
 
-			Set<String> registeredUUIDS = userService.getUUidFromUserName(bpa,mobilenumberToUUIDs);
+			Set<String> registeredUUIDS = userService.getUUidFromUserName(bpa, mobilenumberToUUIDs);
 
 			if (!CollectionUtils.isEmpty(registeredUUIDS))
 				assignes.addAll(registeredUUIDS);
 
 		} else if (wf != null && (wf.getAction().equalsIgnoreCase(BPAConstants.ACTION_SEND_TO_ARCHITECT)
 				|| (bpa.getStatus().equalsIgnoreCase(BPAConstants.STATUS_CITIZEN_APPROVAL_INPROCESS)
-				&& wf.getAction().equalsIgnoreCase(BPAConstants.ACTION_APPROVE)))) {
+						&& wf.getAction().equalsIgnoreCase(BPAConstants.ACTION_APPROVE)))) {
 			// Adding creator of BPA(Licensee)
 			if (bpa.getAccountId() != null)
 				assignes.add(bpa.getAccountId());

@@ -65,14 +65,12 @@ public class PaymentNotificationService {
 	/**
 	 * Generates sms from the input record and Sends smsRequest to SMSService
 	 * 
-	 * @param record
-	 *            The kafka message from receipt create topic
+	 * @param record The kafka message from receipt create topic
 	 */
 	/**
 	 * Generates sms from the input record and Sends smsRequest to SMSService
 	 * 
-	 * @param record
-	 *            The kafka message from receipt create topic
+	 * @param record The kafka message from receipt create topic
 	 */
 	@SuppressWarnings("rawtypes")
 	public void process(HashMap<String, Object> record) {
@@ -86,7 +84,7 @@ public class PaymentNotificationService {
 				return;
 			Map<String, Object> info = documentContext.read("$.RequestInfo");
 			RequestInfo requestInfo = mapper.convertValue(info, RequestInfo.class);
-            String tenantId = valMap.get(tenantIdKey);
+			String tenantId = valMap.get(tenantIdKey);
 			if (config.getBusinessService().contains(valMap.get(businessServiceKey))) {
 				BPA bpa = getBPAFromConsumerCode(valMap.get(tenantIdKey), valMap.get(consumerCodeKey), requestInfo,
 						valMap.get(businessServiceKey));
@@ -104,7 +102,7 @@ public class PaymentNotificationService {
 				users.add(mobileNumberToOwner);
 				BPARequest bpaRequestMsg = BPARequest.builder().requestInfo(requestInfo).BPA(bpa).build();
 
-				smsList.addAll(util.createSMSRequest(bpaRequestMsg,message, mobileNumberToOwner));
+				smsList.addAll(util.createSMSRequest(bpaRequestMsg, message, mobileNumberToOwner));
 				util.sendSMS(smsList, config.getIsSMSEnabled(), tenantId);
 
 				if (null != config.getIsUserEventsNotificationEnabled()) {
@@ -124,8 +122,7 @@ public class PaymentNotificationService {
 	/**
 	 * Enriches the map with values from receipt
 	 * 
-	 * @param context
-	 *            The documentContext of the receipt
+	 * @param context The documentContext of the receipt
 	 * @return The map containing required fields from receipt
 	 */
 	private Map<String, String> enrichValMap(DocumentContext context) {
@@ -134,16 +131,16 @@ public class PaymentNotificationService {
 			valMap.put(businessServiceKey,
 					(String) ((JSONArray) context
 							.read("$.Payment.paymentDetails[?(@.businessService=='BPA.NC_APP_FEE')].businessService"))
-									.get(0));
+							.get(0));
 			valMap.put(consumerCodeKey,
 					(String) ((JSONArray) context
 							.read("$.Payment.paymentDetails[?(@.businessService=='BPA.NC_APP_FEE')].bill.consumerCode"))
-									.get(0));
+							.get(0));
 			valMap.put(tenantIdKey, context.read("$.Payment.tenantId"));
 			valMap.put(payerMobileNumberKey,
 					(String) ((JSONArray) context
 							.read("$.Payment.paymentDetails[?(@.businessService=='BPA.NC_APP_FEE')].bill.mobileNumber"))
-									.get(0));
+							.get(0));
 			valMap.put(paidByKey, context.read("$.Payment.paidBy"));
 			Integer amountPaid = (Integer) ((JSONArray) context
 					.read("$.Payment.paymentDetails[?(@.businessService=='BPA.NC_APP_FEE')].bill.amountPaid")).get(0);
@@ -151,7 +148,7 @@ public class PaymentNotificationService {
 			valMap.put(receiptNumberKey,
 					(String) ((JSONArray) context
 							.read("$.Payment.paymentDetails[?(@.businessService=='BPA.NC_APP_FEE')].receiptNumber"))
-									.get(0));
+							.get(0));
 
 		} catch (Exception e) {
 			throw new CustomException(BPAErrorConstants.RECEIPT_ERROR, "Unable to fetch values from receipt");
@@ -162,12 +159,9 @@ public class PaymentNotificationService {
 	/**
 	 * Searches the tradeLicense based on the consumer code as applicationNumber
 	 * 
-	 * @param tenantId
-	 *            tenantId of the tradeLicense
-	 * @param consumerCode
-	 *            The consumerCode of the receipt
-	 * @param requestInfo
-	 *            The requestInfo of the request
+	 * @param tenantId     tenantId of the tradeLicense
+	 * @param consumerCode The consumerCode of the receipt
+	 * @param requestInfo  The requestInfo of the request
 	 * @return TradeLicense for the particular consumerCode
 	 */
 	private BPA getBPAFromConsumerCode(String tenantId, String consumerCode, RequestInfo requestInfo,
@@ -176,7 +170,7 @@ public class PaymentNotificationService {
 		BPASearchCriteria searchCriteria = new BPASearchCriteria();
 		searchCriteria.setApplicationNo(consumerCode);
 		searchCriteria.setTenantId(tenantId);
-		List<BPA> bpas = bpaService.getBPAFromCriteria(searchCriteria, requestInfo, null);
+		List<BPA> bpas = bpaService.getBPAFromCriteria(searchCriteria, requestInfo);
 
 		if (CollectionUtils.isEmpty(bpas))
 			throw new CustomException(BPAErrorConstants.INVALID_RECEIPT,
