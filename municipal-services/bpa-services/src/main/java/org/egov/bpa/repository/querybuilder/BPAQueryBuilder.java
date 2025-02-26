@@ -26,8 +26,8 @@ public class BPAQueryBuilder {
 			+ "bpa_lastModifiedTime,bpa.createdBy as bpa_createdBy,bpa.lastModifiedBy as bpa_lastModifiedBy,bpa.createdTime as "
 			+ "bpa_createdTime,bpa.additionalDetails,bpa.landId as bpa_landId, "
 			+ "bpaplotinfo.id as bpa_plot_id, bpaplotinfo.plotarea as bpa_plot_area, bpaplotinfo.plotnumber as bpa_plot_number, bpaplotinfo.khatanumber as bpa_khata_number, bpaplotinfo.additionaldetails as bpa_plot_details, "
-			+ "bpabuildinginfo.id as bpa_building_id, bpabuildinginfo.totalbuiltuparea as bpa_total_builtup_area, bpabuildinginfo.numberoffloors as bpa_building_num_floor, bpabuildinginfo.buildingheight as bpa_building_height, "
-			+ "bpafloorinfo.id as bpa_floor_id, bpafloorinfo.floorname as bpa_floor_name, bpafloorinfo.floorlevel as bpa_floor_level, bpafloorinfo.floorusage as bpa_floor_usage, bpafloorinfo.builduparea as bpa_floor_buildup_area, bpafloorinfo.floorarea as bpa_floor_area, bpafloorinfo.carpetarea as bpa_floor_carpet_area, bpafloorinfo.additionaldetails as bpa_floor_details, "
+			+ "bpabuildinginfo.id as bpa_building_id, bpabuildinginfo.totalbuiltuparea as bpa_total_builtup_area, bpabuildinginfo.numberoffloors as bpa_building_num_floor, bpabuildinginfo.buildingheight as bpa_building_height, bpabuildinginfo.additionaldetails as bpa_building_details, "
+			+ "bpafloorinfo.id as bpa_floor_id, bpafloorinfo.floorname as bpa_floor_name, bpafloorinfo.level as bpa_floor_level, bpafloorinfo.usage as bpa_floor_usage, bpafloorinfo.builduparea as bpa_floor_buildup_area, bpafloorinfo.floorarea as bpa_floor_area, bpafloorinfo.carpetarea as bpa_floor_carpet_area, bpafloorinfo.additionaldetails as bpa_floor_details, "
 			+ "bpadoc.id as bpa_doc_id, bpadoc.additionalDetails as doc_details, bpadoc.documenttype as bpa_doc_documenttype,bpadoc.filestoreid as bpa_doc_filestore "
 			+ "FROM {schema}.eg_bpa_buildingplan bpa" + LEFT_OUTER_JOIN_STRING
 			+ "{schema}.eg_bpa_plotinfo bpaplotinfo ON bpaplotinfo.buildingplanid = bpa.id" + LEFT_OUTER_JOIN_STRING

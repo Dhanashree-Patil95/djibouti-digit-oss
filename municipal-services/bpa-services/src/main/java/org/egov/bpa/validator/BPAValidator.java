@@ -114,7 +114,10 @@ public class BPAValidator {
 					allDocuments.forEach(document -> {
 
 						String docType = document.getDocumentType();
-						int lastIndex = docType.lastIndexOf(".");
+						int lastIndex = 0;
+						if (docType.startsWith("APPL")) {
+							lastIndex = docType.lastIndexOf(".");
+						}
 						String documentNs = "";
 						if (lastIndex > 1) {
 							documentNs = docType.substring(0, lastIndex);

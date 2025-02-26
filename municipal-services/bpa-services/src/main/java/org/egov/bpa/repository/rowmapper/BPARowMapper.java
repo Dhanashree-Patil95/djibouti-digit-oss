@@ -39,7 +39,6 @@ public class BPARowMapper implements ResultSetExtractor<List<BPA>> {
 	 * 
 	 * @see org.springframework.jdbc.core.ResultSetExtractor#extractData(java.sql.ResultSet)
 	 */
-	@SuppressWarnings("rawtypes")
 	@Override
 	public List<BPA> extractData(ResultSet rs) throws SQLException, DataAccessException {
 
