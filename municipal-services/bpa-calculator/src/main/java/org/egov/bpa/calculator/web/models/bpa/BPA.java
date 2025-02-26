@@ -89,11 +89,6 @@ public class BPA {
 	@JsonProperty("additionalDetails")
 	private Object additionalDetails = null;
 
-	public BPA id(String id) {
-		this.id = id;
-		return this;
-	}
-
 	/**
 	 * Unique Identifier(UUID) of the bpa application for internal reference.
 	 * 
@@ -108,11 +103,6 @@ public class BPA {
 
 	public void setId(String id) {
 		this.id = id;
-	}
-
-	public BPA applicationNo(String applicationNo) {
-		this.applicationNo = applicationNo;
-		return this;
 	}
 
 	/**
@@ -132,11 +122,6 @@ public class BPA {
 		this.applicationNo = applicationNo;
 	}
 
-	public BPA approvalNo(String approvalNo) {
-		this.approvalNo = approvalNo;
-		return this;
-	}
-
 	/**
 	 * Generate Approval number based on wf status. When to generate approvalNo will
 	 * be depends on wf state so make it configurable at application level
@@ -152,11 +137,6 @@ public class BPA {
 
 	public void setApprovalNo(String approvalNo) {
 		this.approvalNo = approvalNo;
-	}
-
-	public BPA accountId(String accountId) {
-		this.accountId = accountId;
-		return this;
 	}
 
 	/**
@@ -175,11 +155,6 @@ public class BPA {
 		this.accountId = accountId;
 	}
 
-	public BPA riskType(String riskType) {
-		this.riskType = riskType;
-		return this;
-	}
-
 	/**
 	 * Risk type will be drived based on mdms configuration
 	 * 
@@ -196,18 +171,6 @@ public class BPA {
 		this.riskType = riskType;
 	}
 
-	public BPA approvalDate(Long approvalDate) {
-		this.approvalDate = approvalDate;
-		return this;
-	}
-
-	/**
-	 * Risk type will be drived based on mdms configuration
-	 * 
-	 * @return riskType
-	 **/
-	@ApiModelProperty(readOnly = true, value = "Risk type will be drived based on mdms configuration")
-
 	public Long getApprovalDate() {
 		return approvalDate;
 	}
@@ -215,18 +178,6 @@ public class BPA {
 	public void setApprovalDate(Long approvalDate) {
 		this.approvalDate = approvalDate;
 	}
-
-	public BPA applicationDate(Long applicationDate) {
-		this.applicationDate = applicationDate;
-		return this;
-	}
-
-	/**
-	 * Risk type will be drived based on mdms configuration
-	 * 
-	 * @return riskType
-	 **/
-	@ApiModelProperty(readOnly = true, value = "Risk type will be drived based on mdms configuration")
 
 	public Long getApplicationDate() {
 		return applicationDate;
@@ -236,18 +187,6 @@ public class BPA {
 		this.applicationDate = applicationDate;
 	}
 
-	public BPA businessService(String businessService) {
-		this.businessService = businessService;
-		return this;
-	}
-
-	/**
-	 * Risk type will be drived based on mdms configuration
-	 * 
-	 * @return riskType
-	 **/
-	@ApiModelProperty(readOnly = true, value = "Risk type will be drived based on mdms configuration")
-
 	@Size(min = 1, max = 64)
 	public String getBusinessService() {
 		return businessService;
@@ -255,11 +194,6 @@ public class BPA {
 
 	public void setBusinessService(String businessService) {
 		this.businessService = businessService;
-	}
-
-	public BPA landId(String landId) {
-		this.landId = landId;
-		return this;
 	}
 
 	/**
@@ -276,11 +210,6 @@ public class BPA {
 
 	public void setLandId(String landId) {
 		this.landId = landId;
-	}
-
-	public BPA tenantId(String tenantId) {
-		this.tenantId = tenantId;
-		return this;
 	}
 
 	/**
@@ -300,11 +229,6 @@ public class BPA {
 		this.tenantId = tenantId;
 	}
 
-	public BPA status(String status) {
-		this.status = status;
-		return this;
-	}
-
 	/**
 	 * status of the application.
 	 * 
@@ -318,11 +242,6 @@ public class BPA {
 
 	public void setStatus(String status) {
 		this.status = status;
-	}
-
-	public BPA documents(List<Document> documents) {
-		this.documents = documents;
-		return this;
 	}
 
 	public BPA addDocumentsItem(Document documentsItem) {
@@ -348,11 +267,6 @@ public class BPA {
 		this.documents = documents;
 	}
 
-	public BPA landInfo(LandInfo landInfo) {
-		this.landInfo = landInfo;
-		return this;
-	}
-
 	/**
 	 * Get landInfo
 	 * 
@@ -367,11 +281,6 @@ public class BPA {
 
 	public void setLandInfo(LandInfo landInfo) {
 		this.landInfo = landInfo;
-	}
-
-	public BPA workflow(Workflow workflow) {
-		this.workflow = workflow;
-		return this;
 	}
 
 	/**
@@ -390,11 +299,6 @@ public class BPA {
 		this.workflow = workflow;
 	}
 
-	public BPA auditDetails(AuditDetails auditDetails) {
-		this.auditDetails = auditDetails;
-		return this;
-	}
-
 	/**
 	 * Get auditDetails
 	 * 
@@ -409,11 +313,6 @@ public class BPA {
 
 	public void setAuditDetails(AuditDetails auditDetails) {
 		this.auditDetails = auditDetails;
-	}
-
-	public BPA additionalDetails(Object additionalDetails) {
-		this.additionalDetails = additionalDetails;
-		return this;
 	}
 
 	/**
@@ -431,12 +330,6 @@ public class BPA {
 		this.additionalDetails = additionalDetails;
 	}
 
-	@ApiModelProperty(value = "")
-	public BPA plotInfo(PlotInfo plotInfo) {
-		this.plotInfo = plotInfo;
-		return this;
-	}
-
 	/**
 	 * Get plotInfo
 	 * 
@@ -449,12 +342,6 @@ public class BPA {
 
 	public void setPlotInfo(PlotInfo plotInfo) {
 		this.plotInfo = plotInfo;
-	}
-
-	@ApiModelProperty(value = "The building informations specified by owner.")
-	public BPA buildingInfos(List<BuildingInfo> buildingInfos) {
-		this.buildingInfos = buildingInfos;
-		return this;
 	}
 
 	public BPA addBuildingInfoItem(BuildingInfo buildingInfoItem) {

@@ -52,19 +52,7 @@ public class BPAQueryBuilder {
 	public String getBPASearchQuery(BPASearchCriteria criteria, List<Object> preparedStmtList, boolean isCount) {
 
 		StringBuilder builder = new StringBuilder(QUERY);
-
-		if (criteria.getTenantId() != null) {
-			if (centralInstanceUtil.isTenantIdStateLevel(criteria.getTenantId())) {
-
-				addClauseIfRequired(preparedStmtList, builder);
-				builder.append(" bpa.tenantid like ?");
-				preparedStmtList.add('%' + criteria.getTenantId() + '%');
-			} else {
-				addClauseIfRequired(preparedStmtList, builder);
-				builder.append(" bpa.tenantid=? ");
-				preparedStmtList.add(criteria.getTenantId());
-			}
-		}
+		handleTenantId(criteria, preparedStmtList, builder);
 
 		List<String> ids = criteria.getIds();
 		if (!CollectionUtils.isEmpty(ids)) {
@@ -183,11 +171,8 @@ public class BPAQueryBuilder {
 			}
 			addToPreparedStatement(preparedStmtList, createdBy);
 		}
-		if (isCount)
-			return addCountWrapper(builder.toString());
 
-		return addPaginationWrapper(builder.toString(), preparedStmtList, criteria);
-
+		return handlePagination(isCount, criteria, preparedStmtList, builder);
 	}
 
 	/**
@@ -249,9 +234,7 @@ public class BPAQueryBuilder {
 	 * @param ids
 	 */
 	private void addToPreparedStatement(List<Object> preparedStmtList, List<String> ids) {
-		ids.forEach(id -> {
-			preparedStmtList.add(id);
-		});
+		ids.forEach(preparedStmtList::add);
 
 	}
 
@@ -280,24 +263,28 @@ public class BPAQueryBuilder {
 			boolean isCount) {
 
 		StringBuilder builder = new StringBuilder(QUERY);
+		handleTenantId(criteria, preparedStmtList, builder);
+		return handlePagination(isCount, criteria, preparedStmtList, builder);
+	}
 
+	private void handleTenantId(BPASearchCriteria criteria, List<Object> preparedStmtList, StringBuilder builder) {
 		if (criteria.getTenantId() != null) {
-			if (centralInstanceUtil.isTenantIdStateLevel(criteria.getTenantId())) {
-
-				addClauseIfRequired(preparedStmtList, builder);
+			addClauseIfRequired(preparedStmtList, builder);
+			if (Boolean.TRUE.equals(centralInstanceUtil.isTenantIdStateLevel(criteria.getTenantId()))) {
 				builder.append(" bpa.tenantid like ?");
 				preparedStmtList.add('%' + criteria.getTenantId() + '%');
 			} else {
-				addClauseIfRequired(preparedStmtList, builder);
 				builder.append(" bpa.tenantid=? ");
 				preparedStmtList.add(criteria.getTenantId());
 			}
 		}
+	}
 
+	private String handlePagination(boolean isCount, BPASearchCriteria criteria, List<Object> preparedStmtList,
+			StringBuilder builder) {
 		if (isCount)
 			return addCountWrapper(builder.toString());
 
 		return addPaginationWrapper(builder.toString(), preparedStmtList, criteria);
-
 	}
 }
